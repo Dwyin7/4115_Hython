@@ -1,3 +1,9 @@
+{
+    open Parser
+    let lineno = ref 1
+}
+
+
 let alpha = ['a'-'z' 'A'-'Z']
 let escape = '\\' ['\\' ''' '"' 'n' 'r' 't']
 let escape_char = ''' (escape) '''
@@ -10,6 +16,9 @@ let float = (digit+) ['.'] digit+
 let int = digit+
 let whitespace = [' ' '\t' '\r']
 let newline = '\n'
+
+
+
 
 rule token = parse
   whitespace { token lexbuf }
@@ -72,15 +81,14 @@ rule token = parse
 
 (* function *)
 | "def" { FUNC }
-| "return" {RETURN}
+| "return" { RETURN }
 | "yield" { YIELD }
 
-
 (* Errors and Exception *)
-| try { TRY }
-| raise { RAISE }
-| except { EXCEPT }
-| as { AS }
+| "try" { TRY }
+| "raise" { RAISE }
+| "except" { EXCEPT }
+| "as" { AS }
 
 (* Anonymous functions *)
 | "lambda" { LAMBDA }
@@ -94,10 +102,17 @@ rule token = parse
 | "import"  { IMPORT }
 
 (* Other *)
-
-
-
-
+| "true" { TRUE true }
+| "false" { FALSE false }
+| int as lxm { INT_LITERAL(int_of_string lxm) }
+| float as lxm { FLOAT_LITERAL(float_of_string lxm) }
+| char as lxm { CHAR_LITERAL( String.get lxm 1 ) }
+(* | escape_char as lxm{ CHAR_LITERAL( String.get (unescape lxm) 1) } *)
+(* | string { STRING_LITERAL(unescape s) } *)
+| id as lxm { ID(lxm) }
+| eof { EOF }
+(* | '"' { raise (Exceptions.UnmatchedQuotation(!lineno)) }
+| _ as illegal { raise (Exceptions.IllegalCharacter(!filename, illegal, !lineno)) } *)
 
 
 
