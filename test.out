@@ -1,0 +1,22 @@
+
+
+Parsed program: 
+
+Import -> lib: x
+
+Function -> Output Type: P_int, Name: test2, Formals: [(P_int x), (P_float y), (P_char z)],
+Body: [
+Expr (Bind(P_int, a));
+Expr (Bind(P_int, b));
+Expr (BindAndAssign (P_int c, Assign exprs Int(5)));
+Expr (Assign(a, Binop(Id(x), +, Binop(Id(y), +, Id(z)))));
+Return (Id(a))
+]
+Function -> Output Type: P_int, Name: test, Formals: [(P_int a), (P_float b), (P_char c)],
+Body: [
+Expr (Bind(P_int, x));
+Expr (Assign(x, Binop(Id(a), +, Binop(Id(b), +, Id(c)))));
+Return (Id(x))
+]
+
+

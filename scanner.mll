@@ -1,7 +1,8 @@
 {
-    open Parser
-    let lineno = ref 1
+  open Parser
+  let lineno = ref 1
 }
+(* need to idenfity indent and dedent *)
 
 
 let alpha = ['a'-'z' 'A'-'Z']
@@ -10,19 +11,30 @@ let escape_char = ''' (escape) '''
 let ascii = ([' '-'!' '#'-'[' ']'-'~'])
 let digit = ['0'-'9']
 let id = alpha(alpha|digit|'_')* (*TODO: exclude keywords*)
+
+(* string is double quote  *)
 let string = '"' ( (ascii | escape)* as s) '"'
+
+(* char is single quote *)
 let char = ''' ( ascii | digit ) '''
+
 let float = (digit+) ['.'] digit+
 let int = digit+
 let whitespace = [' ' '\t' '\r']
 let newline = '\n'
-
+let indent = ['\t']+
 
 
 
 rule token = parse
   whitespace { token lexbuf }
 | newline { incr lineno; token lexbuf}
+(* | indent as ind 
+{ let current_indent = String.length ind in
+      match update_indent current_indent with
+      | Some token -> token
+      | None -> token lexbuf
+} *)
 (* comment *)
 | "#" { comment lexbuf }
 | '(' { LPAREN }
@@ -120,6 +132,7 @@ rule token = parse
 
 and comment = parse
     newline {token lexbuf}
+|   eof { EOF }
 |   _       {comment lexbuf}
 
 

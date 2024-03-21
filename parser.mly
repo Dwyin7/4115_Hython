@@ -3,6 +3,7 @@ open Ast
 %}
 
 // token declaration
+%token INDENT DEDENT
 %token LPAREN RPAREN LBRACE RBRACE SEMI COLON COMMA EOF
 %token PLUS MINUS TIMES MATMUL DIVIDE MODULO ASSIGN EQ NEQ LT LEQ GT GEQ
 %token AND OR NOT DOT LBRACK RBRACK
@@ -45,7 +46,7 @@ open Ast
 // LRM version (probably won't compile)
 program_rule:
   // import declarations end
-  import_list_rule decls EOF { {imports = $1; functions = $2} }
+  idecl_rule_list decls EOF { {imports = $1; functions = $2} }
 
 typ_rule:
     PRIMITIVE_INT  { P_int }
@@ -61,32 +62,41 @@ typ_rule:
   | STRING { T_string }
   | VOID { Void }
 
+// variable declaration rule
+
+vdecl_rule:
+  // bind or bind and assign
+    typ_rule ID { Bind($1, $2) }
+  | typ_rule ID ASSIGN expr_rule {BindAndAssign(($1,$2),$4)}
+
+vdecl_rule_list:
+  /*nothing*/ { [] }
+  | vdecl_rule SEMI vdecl_rule_list  {  $1 :: $3 }
 
 
 
-import_list_rule:
+idecl_rule_list:
   /* nothing */             { [] }
- | idecl import_list_rule  { $1 :: $2 }
+ | idecl_rule idecl_rule_list  { $1 :: $2 }
 
-idecl:
+idecl_rule:
     IMPORT ID SEMI { Import($2,"") }
   | FROM ID IMPORT ID SEMI { Import($2,$4) }
 
 decls:
   /* nothing */ { [] }
- | decls fdecl_list_rule { $2 :: $1 }
-
+ | decls fdecl_rule { $2 :: $1 }
 
 
 // function declaration
 /* def int foo(int x): */
-fdecl_list_rule: 
-  FUNC typ_rule ID LPAREN formal_list_rule RPAREN COLON
+fdecl_rule: 
+  FUNC typ_rule ID LPAREN formal_list_rule RPAREN LBRACE stmt_rule_list RBRACE
    {{
    output_type = $2;
    func_name = $3;
-   formals = $5; }}
-  //  body = List.rev $8 }
+   formals = $5;
+   body = $8 }}
 
 // function formals 
 formal_list_rule:
@@ -97,14 +107,19 @@ formal_list_rule:
 formal_rule:
   typ_rule ID      { Formal($1,$2) }
 
+stmt_rule_list:
+  /* nothing */  { [] }
+ | stmt_rule stmt_rule_list  { $1 :: $2 }
 
+// statments include expression and the var declaration
+stmt_rule:
+    expr_rule SEMI { Expr($1) }
+  | vdecl_rule SEMI { Expr($1) }
 
-// stmt_list_rule:
-//   /* nothing */  { [] }
-//   | stmt_rule stmt_list_rule {}
+  // returns
+  | RETURN SEMI { Return(Noexpr) }
+  | RETURN expr_rule SEMI { Return($2) }
 
-// stmt_rule:
-//    expr SEMI { Expr $1 }
 //  | RETURN SEMI { Return Noexpr }
 //  | RETURN expr SEMI { Return $2 }
 //  | IF expr COLON stmt %prec NOELSE { If($2, $4, Block([])) }
@@ -113,6 +128,26 @@ formal_rule:
 //  | FOR ID IN expr COLON stmt  { For($2, $4, $6) }
 //  | WHILE expr COLON stmt  { While($2, $4) }
 //  | TRY COLON stmt EXCEPT id COLON stmt { Try($3, $5, $7) }
+
+expr_rule:
+  INT_LITERAL {Int_literal($1)}
+  | FLOAT_LITERAL {Float_literal($1)}
+  | CHAR_LITERAL {Char_literal($1)}
+  | STRING_LITERAL {String_literal($1)}
+  | expr_rule PLUS expr_rule { Binop($1,Add,$3) }
+  | expr_rule MINUS expr_rule { Binop($1,Sub,$3) }
+  | expr_rule TIMES expr_rule { Binop($1,Mul,$3) }
+  | expr_rule MATMUL expr_rule { Binop($1, Matmul, $3) }
+  | expr_rule DIVIDE expr_rule { Binop($1, Div, $3) }
+
+  // value assignment
+  | ID ASSIGN expr_rule { Assign($1, $3) }
+  | ID { Id($1) }
+
+
+
+   
+
 
 
 
