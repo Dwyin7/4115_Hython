@@ -1,11 +1,11 @@
-import x from ModuleX
+import x;
 
-# this is a comment
 
-def int test(a,b,c):
+def int test(int a, float b, char c):
     int x;
     x = a + b + c;
     return x;
+# this is a comment
 
 
 int a = 1;
