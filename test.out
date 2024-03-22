@@ -7,8 +7,10 @@ Import -> lib: x
 Function -> Output Type: P_int, Name: test2, Formals: [(P_int x), (P_float y), (P_char z)],
 Body: [
 Expr (Bind(P_int, a));
-Expr (Bind(P_int, b));
-Expr (BindAndAssign (P_int c, Assign exprs Int(5)));
+Expr (BindAndAssign (T_int b, Assign exprs Tensor([Int(1), Int(2)])));
+Expr (BindAndAssign (T_int B, Assign exprs Tensor([Tensor([Int(1), Int(2), Int(3)]), Tensor([Int(4), Int(5), Int(6)])])));
+Expr (BindAndAssign (T_int A, Assign exprs Tensor([Tensor([]), Tensor([]), Tensor([]), Tensor([])])));
+Expr (BindAndAssign (P_int c, Assign exprs Int(12)));
 Expr (Assign(a, Binop(Id(x), +, Binop(Id(y), +, Id(z)))));
 Return (Id(a))
 ]

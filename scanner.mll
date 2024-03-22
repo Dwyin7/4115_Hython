@@ -29,12 +29,6 @@ let indent = ['\t']+
 rule token = parse
   whitespace { token lexbuf }
 | newline { incr lineno; token lexbuf}
-(* | indent as ind 
-{ let current_indent = String.length ind in
-      match update_indent current_indent with
-      | Some token -> token
-      | None -> token lexbuf
-} *)
 (* comment *)
 | "#" { comment lexbuf }
 | '(' { LPAREN }

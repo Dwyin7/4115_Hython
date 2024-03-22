@@ -36,6 +36,8 @@ type expr =
   | Import of id * id
   | Formal of bind
 
+  (* tensor  *)
+  | Tensor of expr list 
 
 
 type stmt =
@@ -110,6 +112,9 @@ let rec string_of_expr = function
   | Import(lib, fn) -> "Import(" ^ lib ^ ", " ^ fn ^ ")"
   | Formal(bind) -> "Formal(" ^ string_of_bind bind ^ ")"
   | BindAndAssign(bind,exprs) -> "BindAndAssign (" ^ string_of_bind bind ^ ", Assign exprs " ^ string_of_expr exprs ^ ")"
+  | Tensor(exprs) ->
+    "Tensor([" ^ String.concat ", " (List.map string_of_expr exprs) ^ "])"
+
 and string_of_bind (t, id) =
   string_of_typ t ^ " " ^ id
 

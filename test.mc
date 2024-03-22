@@ -8,8 +8,10 @@ def int test(int a, float b, char c){
 
 def int test2(int x, float y, char z){
     int a; 
-    int b;
-    int c = 5;
+    INT b = [1,2];
+    INT B = [[1,2,3],[4,5,6]];
+    INT A = [[],[],[],[]];
+    int c = 12;
     a = x + y + z;
     return a;
 }
