@@ -1,57 +1,38 @@
 # Hython
 
+## Introduction
+
+Hython is an imperative language that resembles a high-level language like Python, which emphasizes code readability with the use of significant indentation. With existing properties of Python, such as list comprehensions, a statically scoped implementation, strict evaluation, anonymous functions, and higher-order functions, Hython can be very easy to learn and use. On the other hand, Hython is specifically designed for high-dimensional matrix calculations. Hence, it also adopts features like a strongly and statically typed system, and modules that contain common matrix manipulations. These additional features that do not exist in Python make matrix manipulation extremely fast and easy. Hython will be an appropriate introduction for users without prior programming experience who want to effectively perform complex matrix calculations. 
+
 ## Work done so far:
+We have finished most of the work in the lexical and syntax analysis phase (ie scanner.mll and parser.mly). The following is a list of items we currently have implemented in the frontend:
 
-We have finished most work in lexical and syntax analysis (scanner and parser)
-Following is the list of things we currently have implemented in the frontend 
-Parser:
-Punctuation
-Math operators
-Primitive type declarations
-Tensor type declarations
-Custom function names
-Associativity
-Rules: 
-Primitive program structure
-Types
-Variable declaration
-Import
-Function declaration
-Function formals
-Statements
-Expressions
-Literals
-+
-- 
-*
-/
-Value assignment
-Tensor
+### Parser + Scanner
+* Punctuation
+* Mathematical operators
+* Primitive type declarations
+* Tensor type declarations
+* Custom functions
+* Associativity
 
-Ast
-Expression
-Statement 
-Function 
+#### Parser rules
+* Primitive program structure
+* Types
+* Variable declaration
+* Import
+* Function declaration
+* Function formals
+* Statements
+* Expressions
+  * Literals
+  * Plus
+  * Minus
+  * Multiply
+  * Divide
+* Value assignment
+* Tensor
 
-## Work left until completion with the expected timeline.
-
-Scanner + Praser (4/9):
-Conditional operators(if, elif, else)
-Loop(for, while)
-Tensor Operators (Custom)
-Logical operators (and, or, not)
-Relational operators (>=, <=, ==, !=)
-Expressions:
-Mod
-Error and expressions
-Types (Void, String)
-Global variables
-Function calls
-lambda function definition
-Semantic checker (check the type and scope of variables) (4/16)
-Sast (4/16)
-intermediate code generation (4/23)
-optimization (4/23)
-code generation (4/30)
-additional features (5/7)
-
+### Ast
+* Expression
+* Statement 
+* Function 
