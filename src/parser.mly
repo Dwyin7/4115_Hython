@@ -89,7 +89,7 @@ idecl_rule:
 
 decls:
   /* nothing */ { [] }
- | decls fdecl_rule { $2 :: $1 }
+ | fdecl_rule decls  { $1 :: $2 }
 
 
 // function declaration

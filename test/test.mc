@@ -1,12 +1,12 @@
 import x;
 
-def int test(int a, float b, char c){
+def int test_primitive(int a, float b, char c){
     int x; 
     x = a + b + c;
     return x;
 }
 
-def int test2(int x, float y, char z){
+def int test_matrix(int x, float y, char z){
     int a; 
     INT b = [1,2];
     INT B = [[1,2,3],[4,5,6]];
