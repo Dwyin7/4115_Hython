@@ -1,6 +1,7 @@
 # Hython
 
-Work done so far:
+## Work done so far:
+
 We have finished most work in lexical and syntax analysis (scanner and parser)
 Following is the list of things we currently have implemented in the frontend 
 Parser:
@@ -32,7 +33,8 @@ Expression
 Statement 
 Function 
 
-Work left until completion with the expected timeline.
+## Work left until completion with the expected timeline.
+
 Scanner + Praser (4/9):
 Conditional operators(if, elif, else)
 Loop(for, while)
