@@ -36,6 +36,9 @@ open Ast
 %token FROM IMPORT
 
 // define associativity
+%right ASSIGN
+%left PLUS MINUS
+%left TIMES DIVIDE MATMUL MODULO
 
 
 %start program_rule
