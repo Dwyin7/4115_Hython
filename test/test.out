@@ -1,24 +1,17 @@
+from x import 
 
-
-Parsed program: 
-
-Import -> lib: x
-
-Function -> Output Type: P_int, Name: test_primitive, Formals: [(P_int a), (P_float b), (P_char c)],
-Body: [
-Expr (Bind(P_int, x));
-Expr (Assign(x, Binop(Binop(Id(a), +, Id(b)), +, Id(c))));
-Return (Id(x))
-]
-Function -> Output Type: P_int, Name: test_matrix, Formals: [(P_int x), (P_float y), (P_char z)],
-Body: [
-Expr (Bind(P_int, a));
-Expr (BindAndAssign (T_int b, Assign exprs Tensor([Int(1), Int(2)])));
-Expr (BindAndAssign (T_int B, Assign exprs Tensor([Tensor([Int(1), Int(2), Int(3)]), Tensor([Int(4), Int(5), Int(6)])])));
-Expr (BindAndAssign (T_int A, Assign exprs Tensor([Tensor([]), Tensor([]), Tensor([]), Tensor([])])));
-Expr (BindAndAssign (P_int c, Assign exprs Int(12)));
-Expr (Assign(a, Binop(Binop(Id(x), +, Id(y)), +, Id(z))));
-Return (Id(a))
-]
-
-
+int test_primitive(int a, float b, char c) {
+int x;
+x = ((x * y) * z);
+return x;
+}
+int test_matrix(int x, float y, char z) {
+int a;
+T_int b = Tensor(1, 2);
+T_int B = Tensor(Tensor(1, 2, 3), Tensor(4, 5, 6));
+T_int A = Tensor(Tensor(), Tensor(), Tensor(), Tensor());
+int c = 12;
+a = ((x + y) + z);
+return a;
+}
+x = test_primitive(1, 2, 3);

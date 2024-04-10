@@ -2,10 +2,9 @@ import x;
 
 def int test_primitive(int a, float b, char c){
     int x; 
-    x = a + b + c;
+    x=x*y*z;
     return x;
 }
-
 def int test_matrix(int x, float y, char z){
     int a; 
     INT b = [1,2];
@@ -17,7 +16,7 @@ def int test_matrix(int x, float y, char z){
 }
 
 
-
+x = test_primitive(1,2,3);
 
 #
 ## this is a comment

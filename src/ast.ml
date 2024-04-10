@@ -12,7 +12,7 @@ type import = Import of id * id
 
 type bind = typ * id
 
-
+(* expressions *)
 type expr =
   | Noexpr
   | Int_literal of int
@@ -20,27 +20,23 @@ type expr =
   | Bool_literal of bool
   | Char_literal of char
   | String_literal of string
+  (* tensor *)
+  | Tensor of expr list 
   | Id of id 
   | Binop of expr * bop * expr
-  (* type bind *)
-  | Bind of typ * id
-  (* assigment *)
-  | Assign of id * expr
-  | BindAndAssign of bind * expr
-
   (* function call *)
   | Call of id * expr list
 
-  (* function expr  *)
-  | Fname of id
-  | Import of id * id
-  | Formal of bind
-
-  (* tensor  *)
-  | Tensor of expr list 
 
 
+(* statements   *)
 type stmt =
+  (* assigment *)
+  | Assign of id * expr
+  | Bind of bind
+  | BindAndAssign of bind * expr
+  (* function declare  *)
+  | Func of typ * id * (bind list) * (stmt list)
   | If of expr * stmt
   | Expr of expr
   | While of expr * stmt
@@ -48,108 +44,56 @@ type stmt =
   | Return of expr
 
 
-(* type  *)
-
-
-type func = {
-  output_type: typ ;
-  func_name: id ;
-  formals: expr list;
-  (* locals: bind list; *)
-  body: stmt list;
-  (* functions: func list; *)
-}
-
 type program = {
-  imports: expr list;
-  functions: func list
+  imports: import list;
+  globals: stmt list
 }
-
-
 
 
 (* Pretty-printing functions *)
+let rec string_of_bop = function
+  | Add -> "+" | Mul -> "*" | Sub -> "-" | Div -> "/"
+  | Equal -> "==" | Neq -> "!=" | Less -> "<"
+  | And -> "&&" | Or -> "||" | Matmul -> "@"
 
-let string_of_op = function
-    Add -> "+"
-  | Sub -> "-"
-  | Equal -> "=="
-  | Neq -> "!="
-  | Less -> "<"
-  | And -> "&&"
-  | Or -> "||"
-
-let rec string_of_typ = function
-    P_int -> "P_int"
-  | P_bool -> "P_bool"
-  | P_float -> "P_float"
-  | P_char -> "P_char"
-  | P_string -> "P_string"
-  | T_int -> "T_int"
-  | T_bool -> "T_bool"
-  | T_float -> "T_float"
-  | T_char -> "T_char"
-  | T_string -> "T_string"
-  | Void -> "Void"
+let string_of_typ = function
+  | P_int -> "int" | P_bool -> "bool" | P_float -> "float"
+  | P_char -> "char" | P_string -> "string"
+  | T_int -> "T_int" | T_bool -> "T_bool" | T_float -> "T_float"
+  | T_char -> "T_char" | T_string -> "T_string"
+  | Void -> "void"
 
 let rec string_of_expr = function
-  | Noexpr -> "Noexpr"
-  | Int_literal i -> "Int(" ^ string_of_int i ^ ")"
-  | Float_literal f -> "Float(" ^ string_of_float f ^ ")"
-  | Bool_literal b -> "Bool(" ^ string_of_bool b ^ ")"
-  | Char_literal c -> "Char('" ^ Char.escaped c ^ "')"
-  | String_literal s -> "String(\"" ^ s ^ "\")"
-  | Id id -> "Id(" ^ id ^ ")"
-  | Binop(e1, op, e2) ->
-      "Binop(" ^ string_of_expr e1 ^ ", " ^
-      string_of_op op ^ ", " ^ string_of_expr e2 ^ ")"
-  | Assign(id, expr) -> "Assign(" ^ id ^ ", " ^ string_of_expr expr  ^ ")"
-  | Bind(typ, id) -> "Bind(" ^ string_of_typ typ ^ ", " ^ id ^ ")"
-  | Call(id, exprs) ->
-      "Call(" ^ id ^ ", [" ^
-      String.concat ", " (List.map string_of_expr exprs) ^ "])"
-  | Fname id -> "Fname(" ^ id ^ ")"
-  | Import(lib, fn) -> "Import(" ^ lib ^ ", " ^ fn ^ ")"
-  | Formal(bind) -> "Formal(" ^ string_of_bind bind ^ ")"
-  | BindAndAssign(bind,exprs) -> "BindAndAssign (" ^ string_of_bind bind ^ ", Assign exprs " ^ string_of_expr exprs ^ ")"
-  | Tensor(exprs) ->
-    "Tensor([" ^ String.concat ", " (List.map string_of_expr exprs) ^ "])"
+  | Noexpr -> "noexpr"
+  | Int_literal i -> string_of_int i
+  | Float_literal f -> string_of_float f
+  | Bool_literal b -> string_of_bool b
+  | Char_literal c -> Printf.sprintf "'%c'" c
+  | String_literal s -> Printf.sprintf "\"%s\"" s
+  | Tensor es -> Printf.sprintf "Tensor(%s)" (String.concat ", " (List.map string_of_expr es))
+  | Id id -> id
+  | Binop (e1, op, e2) -> Printf.sprintf "(%s %s %s)" (string_of_expr e1) (string_of_bop op) (string_of_expr e2)
+  | Call (id, es) -> Printf.sprintf "%s(%s)" id (String.concat ", " (List.map string_of_expr es))
 
-and string_of_bind (t, id) =
-  string_of_typ t ^ " " ^ id
-
-
-let string_of_formal = function
-    Formal(t, id) -> "(" ^ string_of_typ t ^ " " ^ id ^ ")"
-  | _ -> "error in formal"
-let string_of_id = function x -> x
-
-let rec string_of_import = function 
-  | Import(lib,"") -> "Import -> lib: " ^ lib  ^ "\n"
-  | Import(lib,fn) -> "Import -> func: " ^ fn ^ " lib: "^ lib ^ "\n"
-  | _ -> "error"
-
-    
 let rec string_of_stmt = function
-    | If (e, s) -> "If (" ^ string_of_expr e ^ ") {\n" ^ string_of_stmt s ^ "\n}"
-    | Expr e -> "Expr (" ^ string_of_expr e ^ ");"
-    | While (e, s) -> "While (" ^ string_of_expr e ^ ") {\n" ^ string_of_stmt s ^ "\n}"
-    | For (e, s) -> "For (" ^ string_of_expr e ^ ") {\n" ^ string_of_stmt s ^ "\n}"
-    | Return (e) -> "Return (" ^ string_of_expr e ^ ")"
-  
-let string_of_function_decl func =
-    "Function -> " ^ 
-    "Output Type: " ^ string_of_typ func.output_type ^ ", " ^
-    "Name: " ^ func.func_name ^ ", " ^
-    "Formals: [" ^ String.concat ", " (List.map string_of_formal func.formals) ^ "],\n" ^
-    "Body: [\n" ^ String.concat "\n" (List.map string_of_stmt func.body) ^ "\n]\n"
-  
+  | Assign (id, e) -> Printf.sprintf "%s = %s;" id (string_of_expr e)
+  | BindAndAssign ((t, id), e) -> Printf.sprintf "%s %s = %s;" (string_of_typ t) id (string_of_expr e)
+  | Func (t, id, bs, stmts) ->
+      let formals = String.concat ", " (List.map (fun (ty, id) -> Printf.sprintf "%s %s" (string_of_typ ty) id) bs) in
+      let body = String.concat "\n" (List.map string_of_stmt stmts) in
+      Printf.sprintf "%s %s(%s) {\n%s\n}" (string_of_typ t) id formals body
+  | If (e, s) -> Printf.sprintf "if (%s) %s" (string_of_expr e) (string_of_stmt s)
+  | Expr e -> string_of_expr e ^ ";"
+  | While (e, s) -> Printf.sprintf "while (%s) %s" (string_of_expr e) (string_of_stmt s)
+  | For (e, s) -> Printf.sprintf "for (%s) %s" (string_of_expr e) (string_of_stmt s)
+  | Return e -> Printf.sprintf "return %s;" (string_of_expr e)
+  | Bind (t,id) ->  Printf.sprintf "%s %s;" (string_of_typ t) id
 
+let string_of_import (Import (m, i)) =
+  Printf.sprintf "from %s import %s" m i
 
-let string_of_program prog =
-  "\n\nParsed program: \n\n" ^
-  String.concat "" (List.map string_of_import prog.imports) ^
-  "\n" ^
-  String.concat "" (List.map string_of_function_decl prog.functions) ^
-  "\n"
+let string_of_program { imports; globals } =
+  let imports_str = String.concat "\n" (List.map string_of_import imports) in
+  let globals_str = String.concat "\n" (List.map string_of_stmt globals) in
+  Printf.sprintf "%s\n\n%s" imports_str globals_str
 
