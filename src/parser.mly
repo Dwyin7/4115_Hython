@@ -74,19 +74,26 @@ typ_rule:
 
 
 expr_rule:
-    INT_LITERAL {Int_literal($1)}
-  | FLOAT_LITERAL {Float_literal($1)}
-  | CHAR_LITERAL {Char_literal($1)}
-  | STRING_LITERAL {String_literal($1)}
-  | expr_rule PLUS expr_rule { Binop($1,Add,$3) }
-  | expr_rule MINUS expr_rule { Binop($1,Sub,$3) }
-  | expr_rule TIMES expr_rule { Binop($1,Mul,$3) }
+    INT_LITERAL { Int_literal($1) }
+  | FLOAT_LITERAL { Float_literal($1) }
+  | CHAR_LITERAL { Char_literal($1) }
+  | STRING_LITERAL { String_literal($1) }
+  | expr_rule PLUS expr_rule { Binop($1, Add, $3) }
+  | expr_rule MINUS expr_rule { Binop($1, Sub, $3) }
+  | expr_rule TIMES expr_rule { Binop($1, Mul, $3) }
   | expr_rule MATMUL expr_rule { Binop($1, Matmul, $3) }
   | expr_rule DIVIDE expr_rule { Binop($1, Div, $3) }
+  | expr_rule EQ expr_rule { Binop($1, Equal, $3) }
+  | expr_rule NEQ expr_rule { Binop($1, Neq, $3) }
+  | expr_rule LT expr_rule { Binop($1, Less, $3) }
+  | expr_rule LEQ expr_rule { Binop($1, Leq, $3) }
+  | expr_rule GT expr_rule { Binop($1, Greater, $3) }
+  | expr_rule GEQ expr_rule { Binop($1, Geq, $3) }
+  | expr_rule AND expr_rule { Binop($1, And, $3) }
+  | expr_rule OR expr_rule { Binop($1, Or, $3) }
   | ID { Id($1) }
   | LBRACK tensor_rule_list RBRACK { Tensor($2) }
-  //function call
-  | ID LPAREN args_opt RPAREN  {Call($1,$3)}
+  | ID LPAREN args_opt RPAREN { Call($1, $3) }
 
 
 args_opt:
@@ -106,13 +113,16 @@ stmt_rule_list:
 // statment rule
 stmt_rule:
     expr_rule SEMI { Expr($1) }
+  | LBRACE stmt_rule_list RBRACE { Block($2) }
   | vdecl_rule { $1 }
   | fdecl_rule { $1 }
   | ID ASSIGN expr_rule SEMI { Assign($1, $3) }
   | RETURN SEMI { Return(Noexpr) }
   | RETURN expr_rule SEMI { Return($2) }
+  | WHILE LPAREN expr_rule RPAREN stmt_rule      { While($3, $5) }
+  | FOR LPAREN ID IN expr_rule RPAREN stmt_rule    { For($3, $5, $7) }
   // | IF expr_rule stmt_rule         { If($2, $3) }
-  // | WHILE expr_rule stmt_rule      { While($2, $3) }
+
 
 vdecl_rule:
     typ_rule ID SEMI                  { Bind($1, $2) }

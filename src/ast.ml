@@ -1,6 +1,6 @@
 
 
-type bop = Add | Mul | Sub | Div | Equal | Neq | Less | And | Or | Matmul
+type bop = Add | Mul | Sub | Div | Equal | Neq | Less | And | Or | Matmul | Greater | Geq | Leq
 
 type typ = P_int | P_bool | P_float | P_char | P_string | T_int | T_bool | T_float | T_char | T_string | Void
 
@@ -31,6 +31,7 @@ type expr =
 
 (* statements   *)
 type stmt =
+    Block of stmt list
   (* assigment *)
   | Assign of id * expr
   | Bind of bind
@@ -40,7 +41,7 @@ type stmt =
   | If of expr * stmt
   | Expr of expr
   | While of expr * stmt
-  | For of expr * stmt
+  | For of id * expr * stmt
   | Return of expr
 
 
@@ -54,7 +55,7 @@ type program = {
 let rec string_of_bop = function
   | Add -> "+" | Mul -> "*" | Sub -> "-" | Div -> "/"
   | Equal -> "==" | Neq -> "!=" | Less -> "<"
-  | And -> "&&" | Or -> "||" | Matmul -> "@"
+  | And -> "&&" | Or -> "||" | Matmul -> "@" | Leq -> "<=" | Greater -> ">" | Geq -> ">="
 
 let string_of_typ = function
   | P_int -> "int" | P_bool -> "bool" | P_float -> "float"
@@ -85,9 +86,12 @@ let rec string_of_stmt = function
   | If (e, s) -> Printf.sprintf "if (%s) %s" (string_of_expr e) (string_of_stmt s)
   | Expr e -> string_of_expr e ^ ";"
   | While (e, s) -> Printf.sprintf "while (%s) %s" (string_of_expr e) (string_of_stmt s)
-  | For (e, s) -> Printf.sprintf "for (%s) %s" (string_of_expr e) (string_of_stmt s)
+  | For (id,e, s) -> Printf.sprintf "for (%s in %s) %s" (id) (string_of_expr e) (string_of_stmt s)
   | Return e -> Printf.sprintf "return %s;" (string_of_expr e)
   | Bind (t,id) ->  Printf.sprintf "%s %s;" (string_of_typ t) id
+  | Block (stmts) -> let body = "{" ^ String.concat "\n" (List.map string_of_stmt stmts) ^ "}" in
+  Printf.sprintf "%s" body
+
 
 let string_of_import (Import (m, i)) =
   Printf.sprintf "from %s import %s" m i
