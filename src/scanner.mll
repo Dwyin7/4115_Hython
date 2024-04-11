@@ -74,6 +74,7 @@ rule token = parse
 | "CHAR" { CHAR }
 | "STRING" { STRING }
 | "void" { VOID }
+| "func" { FUNCTION }
 
 (* Branch Control *)
 | "if" { IF }

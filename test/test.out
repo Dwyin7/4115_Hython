@@ -18,4 +18,10 @@ int c = 12;
 a = ((x + y) + z);
 return a;
 }
+Function higher_level_function() {
+return lambda int a, int b -> (a + b);
+}
+Function function_variable = test_primitive;
+Function lamb_func = lambda int a, int b -> (a + b);
+lambda int a, int b -> (a + b);
 x = test_primitive(1, 2, 3);

@@ -25,7 +25,13 @@ def int test_matrix(int x, float y, char z){
     return a;
 }
 
+def func higher_level_function (){
+    return lambda (int a, int b): a+b;
+}
 
+func function_variable = test_primitive;
+func lamb_func = lambda (int a, int b): a+b;
+lambda (int a, int b): a+b;
 x = test_primitive(1,2,3);
 
 #

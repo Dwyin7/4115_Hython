@@ -23,6 +23,7 @@ open Ast
 %token PRIMITIVE_CHAR
 %token PRIMITIVE_STRING
 %token VOID
+%token FUNCTION 
 
 // tensor types 
 %token INT FLOAT BOOL CHAR STRING
@@ -71,6 +72,7 @@ typ_rule:
   | BOOL { T_bool }
   | CHAR { T_char }
   | STRING { T_string }
+  | FUNCTION { Func }
 
 
 expr_rule:
@@ -93,7 +95,9 @@ expr_rule:
   | expr_rule OR expr_rule { Binop($1, Or, $3) }
   | ID { Id($1) }
   | LBRACK tensor_rule_list RBRACK { Tensor($2) }
-  | ID LPAREN args_opt RPAREN { Call($1, $3) }
+  | ID LPAREN args_opt RPAREN { Call(Id $1, $3) }
+  /*| expr_rule LPAREN args_opt RPAREN { Call( $1, $3) }*/
+  | LAMBDA LPAREN formal_list_rule RPAREN COLON expr_rule { Lambda($3, $6) }
 
 
 args_opt:

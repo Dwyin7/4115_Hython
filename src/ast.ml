@@ -3,6 +3,7 @@
 type bop = Add | Mul | Sub | Div | Equal | Neq | Less | And | Or | Matmul | Greater | Geq | Leq
 
 type typ = P_int | P_bool | P_float | P_char | P_string | T_int | T_bool | T_float | T_char | T_string | Void
+          | Func (* make it possible to assigned function to variables (parameter types * return type) *)
 
 type id = string
 
@@ -25,7 +26,9 @@ type expr =
   | Id of id 
   | Binop of expr * bop * expr
   (* function call *)
-  | Call of id * expr list
+  | Call of expr * expr list (*expr * expr list instead of Id * expr list because lambda function is an expression *)
+  | Lambda of bind list * expr  (* Parameters * body, lambda must be single-lined, the value of the single expression is the return value, the return type is inferred by the compiler*)
+  (*Lambda function is anomoyous but can be assigned to a func variable *)
 
 
 
@@ -62,7 +65,7 @@ let string_of_typ = function
   | P_char -> "char" | P_string -> "string"
   | T_int -> "T_int" | T_bool -> "T_bool" | T_float -> "T_float"
   | T_char -> "T_char" | T_string -> "T_string"
-  | Void -> "void"
+  | Void -> "void" | Func -> "Function"
 
 let rec string_of_expr = function
   | Noexpr -> "noexpr"
@@ -74,7 +77,8 @@ let rec string_of_expr = function
   | Tensor es -> Printf.sprintf "Tensor(%s)" (String.concat ", " (List.map string_of_expr es))
   | Id id -> id
   | Binop (e1, op, e2) -> Printf.sprintf "(%s %s %s)" (string_of_expr e1) (string_of_bop op) (string_of_expr e2)
-  | Call (id, es) -> Printf.sprintf "%s(%s)" id (String.concat ", " (List.map string_of_expr es))
+  | Call (expr, es) -> Printf.sprintf "%s(%s)" (string_of_expr expr) (String.concat ", " (List.map string_of_expr es))
+  | Lambda (bs, e) -> Printf.sprintf "lambda %s -> %s" (String.concat ", " (List.map (fun (t, id) -> Printf.sprintf "%s %s" (string_of_typ t) id) bs)) (string_of_expr e)
 
 let rec string_of_stmt = function
   | Assign (id, e) -> Printf.sprintf "%s = %s;" id (string_of_expr e)

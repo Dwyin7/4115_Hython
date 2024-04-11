@@ -1,5 +1,9 @@
 EXEC=test.native
 
+# Source files and directories to watch
+SOURCES=$(wildcard src/*.ml) $(wildcard src/*.mll) $(wildcard src/*.mly)
+SRC_DIR=src
+
 # Source file to compile
 SOURCE=test/test.mc
 
@@ -10,8 +14,8 @@ OUTPUT=test/test.out
 
 all: $(EXEC)
 
-$(EXEC):
-	ocamlbuild -I src $(EXEC)
+$(EXEC): $(SOURCES) $(SOURCE)
+	ocamlbuild -I $(SRC_DIR) $(EXEC)
 
 run: $(EXEC)
 	./$(EXEC) <$(SOURCE) >$(OUTPUT)
@@ -19,3 +23,4 @@ run: $(EXEC)
 clean:
 	ocamlbuild -clean
 	rm -f $(OUTPUT)
+
