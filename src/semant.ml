@@ -8,6 +8,54 @@ module StringMap = Map.Make (String)
 let check (imports, globals) =
   (* TODO: Verify a list of bindings has no duplicate names  *)
   (* cannot have same var name in same scope *)
+
+
+  (* TODO: check expr *)
+
+  (* TODO: check tensor *)
+
+  (* TODO: check lambda *)
+
+  (* TODO: check Call *)
+
+
+
+  (* TODO: Add Function name to symbol table *)
+
+  (* TODO: Find Function name in symbol table *)
+
+
+
+
+
+
+  (* TODO: check stmt *)
+
+  (* TODO: check Block *)
+
+  (* TODO: check Assign *)
+
+  (* TODO: check Binds *)
+
+  (* TODO: check BindAndAssign *)
+
+  (* TODO: check Func *)
+
+  (* TODO: check function formals *)
+
+  
+
+
+  (* TODO: check If *)
+
+  (* TODO: check While *)
+
+  (* TODO: check For *)
+
+
+
+
+
   let check_binds (kind : string) (binds : (typ * id) list) =
     let rec dups = function
       | [] -> ()
