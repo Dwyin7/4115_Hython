@@ -1,8 +1,26 @@
 import x;
 
+#int x = 1;
+#
+#
+#
+def int call(char x){
+    return true;
+}
+#
+def bool call(int x, int y){
+    return false;
+}
+#
+
 def int test_primitive(int a, float b, char c){
-    int x; 
-    x=1;
+    char x;
+    x = 'c';
+    def bool call(char x){
+    return false;
+    }
+
+
     y=[[1,3,4,5],[1,3,4,5],[1,3,4,5],[1,3,4,5]];
     z = [1,3,4,5];
     while(x<=100){
@@ -13,7 +31,12 @@ def int test_primitive(int a, float b, char c){
     }
 
     return x;
+    x = 123;
 }
+
+{}
+
+
 
 def int test_matrix(int x, float y, char z){
     int a; 
@@ -30,7 +53,6 @@ def func higher_level_function (){
 }
 
 func function_variable = test_primitive;
-func lamb_func = lambda (int a, int b): a+b;
 lambda (int a, int b): a+b;
 x = test_primitive(1,2,3);
 

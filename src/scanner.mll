@@ -110,13 +110,13 @@ rule token = parse
 | "import"  { IMPORT }
 
 (* Other *)
-| "true" { TRUE true }
-| "false" { FALSE false }
+(* | "true" { TRUE true } *)
+(* | "false" { FALSE false } *)
 | int as lxm { INT_LITERAL(int_of_string lxm) }
 | float as lxm { FLOAT_LITERAL(float_of_string lxm) }
+| "true"   { BOOL_LITERAL(true)  }
+| "false"  { BOOL_LITERAL(false) }
 | char as lxm { CHAR_LITERAL( String.get lxm 1 ) }
-(* | escape_char as lxm{ CHAR_LITERAL( String.get (unescape lxm) 1) }
-| string { STRING_LITERAL(unescape s) } *)
 | id as lxm { ID(lxm) }
 | eof { EOF }
 (* | '"' { raise (Exceptions.UnmatchedQuotation(!lineno)) }

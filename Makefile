@@ -1,14 +1,14 @@
-EXEC=test.native
+EXEC=test2.native
 
 # Source files and directories to watch
 SOURCES=$(wildcard src/*.ml) $(wildcard src/*.mll) $(wildcard src/*.mly)
 SRC_DIR=src
 
 # Source file to compile
-SOURCE=test/test.mc
+SOURCE=test/checker.mc
 
 # Output file
-OUTPUT=test/test.out
+OUTPUT=test/checker.out
 
 .PHONY: all clean run
 

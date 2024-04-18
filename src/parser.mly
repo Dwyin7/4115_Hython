@@ -11,8 +11,7 @@ open Ast
 
 %token <int> INT_LITERAL
 %token <float> FLOAT_LITERAL
-%token <bool> TRUE
-%token <bool> FALSE
+%token <bool> BOOL_LITERAL
 %token <char> CHAR_LITERAL
 %token <string> STRING_LITERAL
 
@@ -80,6 +79,7 @@ expr_rule:
   | FLOAT_LITERAL { Float_literal($1) }
   | CHAR_LITERAL { Char_literal($1) }
   | STRING_LITERAL { String_literal($1) }
+  | BOOL_LITERAL { Bool_literal($1) }
   | expr_rule PLUS expr_rule { Binop($1, Add, $3) }
   | expr_rule MINUS expr_rule { Binop($1, Sub, $3) }
   | expr_rule TIMES expr_rule { Binop($1, Mul, $3) }
@@ -95,7 +95,7 @@ expr_rule:
   | expr_rule OR expr_rule { Binop($1, Or, $3) }
   | ID { Id($1) }
   | LBRACK tensor_rule_list RBRACK { Tensor($2) }
-  | ID LPAREN args_opt RPAREN { Call(Id $1, $3) }
+  | ID LPAREN args_opt RPAREN { Call($1, $3) }
   /*| expr_rule LPAREN args_opt RPAREN { Call( $1, $3) }*/
   | LAMBDA LPAREN formal_list_rule RPAREN COLON expr_rule { Lambda($3, $6) }
 
