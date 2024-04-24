@@ -2,6 +2,10 @@ open Ast
 open Sast
 module StringMap = Map.Make (String)
 
+
+(* TODO: Verify a list of bindings has no duplicate names  *)
+(* cannot have same var name in same scope *)
+
 type func_signature = { ret_typ : typ; formals : (typ * id) list }
 
 (* symbol table scope *)
@@ -11,6 +15,23 @@ type symbol_table = {
   functions : func_signature StringMap.t;
   parent : symbol_table option;
 }
+
+let string_of_symbol_table scope =
+  let variables_str =
+    StringMap.fold (fun name typ acc ->
+        acc ^ name ^ " : " ^ string_of_typ typ ^ "\n"
+      ) scope.variables ""
+  in
+  let functions_str =
+    StringMap.fold (fun name signature acc ->
+        let formals_str =
+          List.map (fun (t, id) -> string_of_typ t ^ " " ^ id) signature.formals
+          |> String.concat ", "
+        in
+        acc ^ name ^ " : " ^ string_of_typ signature.ret_typ ^ " (" ^ formals_str ^ ")\n"
+      ) scope.functions ""
+  in
+  "Variables:\n" ^ variables_str ^ "\nFunctions:\n" ^ functions_str
 
 let create_scope parent =
   { variables = StringMap.empty; functions = StringMap.empty; parent }
@@ -49,11 +70,13 @@ let rec find_variable_current_scope (scope : symbol_table) name =
   with Not_found ->
     raise (Failure ("Variable not declared in the current scope: " ^ name))
 
+(* TODO: verify if need to use scope *)
 let check_assign lvaluet rvaluet err =
   if lvaluet = rvaluet then lvaluet else raise (Failure err)
 
 let rec check_expr scope expr =
   match expr with
+  (* TODO: Noexpr *)
   | Int_literal l -> (P_int, SInt_literal l)
   | Float_literal l -> (P_float, SFloat_literal l)
   | Bool_literal l -> (P_bool, SBool_literal l)
@@ -62,7 +85,43 @@ let rec check_expr scope expr =
   | Id var ->
       let typ = find_variable scope var in
       (typ, SId var)
+  | Binop (e1, op, e2) ->
+    let _ = string_of_expr e2 in
+    let (t1, checked_e1) = check_expr scope e1 in
+    let (t2, checked_e2) = check_expr scope e2 in
+    let ret_typ = match op with
+      | Add | Sub | Mul | Div -> begin
+          match (t1, t2) with
+          | P_int, P_int -> P_int
+          | P_float, P_float -> P_float
+          | _, _ -> raise (Failure ("Invalid operands for binary operator " ^ string_of_bop op))
+        end
+      | Equal | Neq | Less | Leq | Greater | Geq -> begin
+          match (t1, t2) with
+          | P_int, P_int -> P_bool
+          | P_float, P_float -> P_bool
+          | P_char, P_char -> P_bool
+          | P_string, P_string -> P_bool
+          | P_bool, P_bool -> P_bool
+          | _, _ -> raise (Failure ("Invalid operands for binary operator " ^ string_of_bop op))
+        end
+      (* TODO: Fix And and Or *)
+      | And | Or -> begin
+          match (t1, t2) with
+          | P_bool, P_bool -> P_bool
+          | _ -> raise (Failure ("Invalid operands for binary operator " ^ string_of_bop op))
+        end
+      (* TODO: Fix Matmul after Tensor is implemented *)
+      | Matmul -> begin
+        match (t1, t2) with
+        | P_int, P_int -> P_bool
+        | _ -> raise (Failure ("Invalid operands for binary operator " ^ string_of_bop op))
+      end
+    in
+    (ret_typ, SBinop ((t1, checked_e1), op, (t2, checked_e2))) 
   | Call (id, exprs) ->
+      (* TODO: check function formals *)
+      (* TODO: Fix scope for Call and verify correct *)
       let func_signature = find_function scope id in
       let sexprs = List.map (check_expr scope) exprs in
       let typs, _ = List.split sexprs in
@@ -78,30 +137,31 @@ let rec check_expr scope expr =
       in
       List.iter2 check_type_pairs formals_typ typs;
       (func_signature.ret_typ, SCall (id, sexprs))
+  (* TODO: Tensor *)
+  (* TODO: Lambda *)
 
-(* TODO: check stmt, return (scope, SAST) *)
 let rec check_statement (scope : symbol_table) (statement : stmt) =
   match statement with
   | Expr expr ->
       let sexpr = check_expr scope expr in
       (scope, SExpr sexpr)
   | Block stmts ->
-      let new_scope = create_scope (Some scope) in
-      let sstmts = List.map (check_statement new_scope) stmts in
-      (scope, SBlock (List.map snd sstmts))
+    let _, checked_stmts =
+      List.fold_left
+        (fun (current_scope, checked_stmts) stmt ->
+          let new_scope, checked_stmt = check_statement current_scope stmt in
+          (new_scope, checked_stmts @ [checked_stmt])) 
+        (create_scope (Some scope), [])  
+        stmts 
+    in
+      (scope, SBlock checked_stmts)
   | Bind (typ, id) ->
       if StringMap.mem id scope.variables then
         raise (Failure ("Already decalered: " ^ id ^ " , in this scope"))
       else
         let new_scope = add_variable id typ scope in
-        (* raise
-           (Failure
-              ("Already decalered: "
-              ^ string_of_bool (StringMap.mem id new_scope.variables)
-              ^ " , in this scope")); *)
         (new_scope, SBind (typ, id))
   | Assign (id, e) ->
-      (* find the variable first *)
       let variable_typ = find_variable scope id in
       let e_typ, sx = check_expr scope e in
       let err =
@@ -115,44 +175,62 @@ let rec check_statement (scope : symbol_table) (statement : stmt) =
         raise (Failure ("Already decalered: " ^ id ^ " , in this scope"))
       else
         let new_scope = add_variable id typ scope in
-        let e_typ, sx = check_expr scope e in
+        let e_typ, sx = check_expr new_scope e in
         let err =
           "left type:" ^ string_of_typ typ ^ " Right type: "
           ^ string_of_typ e_typ ^ " Variable name:" ^ id
         in
         check_assign typ e_typ err;
-        (scope, SBindAndAssign ((typ, id), (e_typ, sx)))
+        (new_scope, SBindAndAssign ((typ, id), (e_typ, sx)))
   | Func (typ, id, binds, stmts) ->
-      (* duplicate function decals *)
       if StringMap.mem id scope.functions then
         raise (Failure ("Already decalered: " ^ id ^ " , in this scope"))
       else
         let func_signature = { ret_typ = typ; formals = binds } in
-        (* new function scope  *)
         let new_function_scope = create_scope (Some scope) in
-        (* then add binds to this function scope  *)
         let scope_with_formals =
           List.fold_left
             (fun acc_scope (typ, id) -> add_variable id typ acc_scope)
             new_function_scope binds
         in
-        (* then check the stmts of this function  *)
-        (* only extract the snd sstmt  *)
         let check_function_statements =
-          List.map
-            (fun stmt -> snd (check_statement scope_with_formals stmt))
-            stmts
+          let _, checked_stmts =
+            List.fold_left
+              (fun (current_scope, checked_stmts) stmt ->
+                let new_scope, checked_stmt = check_statement current_scope stmt in
+                (new_scope, checked_stmts @ [checked_stmt]))
+              (scope_with_formals, [])  
+              stmts
+          in
+          checked_stmts
         in
-        (* add the function to the new symbol table *)
         let new_scope = add_function id typ binds scope in
         (new_scope, SFunc (typ, id, binds, check_function_statements))
+  | While (cond_expr, loop_stmt) -> 
+      let cond_type, checked_cond = check_expr scope cond_expr in
+      if cond_type != P_bool then
+        raise (Failure "While statement contains non-boolean value");
+      
+      let new_scope = create_scope (Some scope) in
+      let _, checked_loop_stmt = check_statement new_scope loop_stmt in
+        (scope, SWhile ((cond_type, checked_cond), checked_loop_stmt)) 
+  | For (iterator, start_expr, loop_stmt) ->
+    let iterator_type = find_variable_current_scope scope iterator in
+    let start_type, checked_start_expr = check_expr scope start_expr in
+    if iterator_type != P_int || start_type != P_int then
+      raise (Failure "For loop has to be integer ranges");
+  
+    let loop_scope = create_scope (Some scope) in
+    let loop_scope_with_iterator = add_variable iterator P_int loop_scope in
+    let _, checked_loop_stmt = check_statement loop_scope_with_iterator loop_stmt in
+    (scope, SFor (iterator, (P_int, checked_start_expr), checked_loop_stmt))
+  (* TODO: If *)
+  (* TODO: Return *)
   | x -> failwith ("Statement type not handled yet: " ^ string_of_stmt x)
-(* Extend as needed *)
 
 (* semantic checking of ast, return Sast if success *)
 (* globals are list of statements  *)
 (* function and variable share the same name space under same scope *)
-
 let rec check_statements scope statments sstatments =
   match statments with
   | [] -> sstatments
@@ -160,69 +238,6 @@ let rec check_statements scope statments sstatments =
       let new_scope, sstmt = check_statement scope h in
       let new_sstmts = sstatments @ [ sstmt ] in
       check_statements new_scope l new_sstmts
-
-(* TODO: Verify a list of bindings has no duplicate names  *)
-(* cannot have same var name in same scope *)
-
-(* TODO: check tensor *)
-
-(* TODO: check lambda *)
-
-(* TODO: check Call *)
-
-(* TODO: Add Function name to symbol table *)
-
-(* TODO: Find Function name in symbol table *)
-
-(* TODO: check Block *)
-
-(* TODO: check Assign *)
-
-(* TODO: check Binds *)
-
-(* TODO: check BindAndAssign *)
-
-(* TODO: check function formals *)
-
-(* TODO: check If *)
-let check_if_statement cond_expr then_stmt else_stmt scope =
-  let cond_type, checked_cond = check_expr scope cond_expr in
-  if cond_type != P_bool then
-    raise (Failure "If statement contains non-boolean value");
-  let _, checked_then = check_statement scope then_stmt in
-  let _, checked_else = check_statement scope else_stmt in
-  P_void, SIf (checked_cond, checked_then, checked_else)
-
-(* TODO: check While *)
-let check_while_statement cond_expr loop_stmt scope =
-  let cond_type, checked_cond = check_expr scope cond_expr in
-  if cond_type != P_bool then
-    raise (Failure "While statement contains non-boolean value");
-  
-  let new_scope = create_scope (Some scope)
-  in
-  let _, checked_loop_stmt = check_statement new_scope loop_stmt in
-  P_void, SWhile (checked_cond, checked_loop_stmt)
-
-(* TODO: check For *)
-let check_for_statement iterator start_expr end_expr loop_stmt scope =
-  let start_type, checked_start = check_expr scope start_expr in
-  let end_type, checked_end = check_expr scope end_expr in
-
-  if start_type != P_int || end_type != P_int then
-    raise (Failure "For loop has to be integer ranges");
-  
-  let iter_scope = add_variable_check_dup iterator P_int scope in  
-  let new_scope = create_scope (Some iter_scope)
-  in
-  let _, checked_loop_stmt = check_statement new_scope loop_stmt in
-  P_void, SFor (iterator, checked_start, checked_end, checked_loop_stmt)
-
-(* TODO: check expr *)
-
-(*TODO: find the variable in all scopes*)
-
-(*TODO: add bind to symbol table*)
 
 let check program =
   let imports = program.imports in

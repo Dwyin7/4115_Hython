@@ -6,12 +6,12 @@ type bop =
   | Equal
   | Neq
   | Less
+  | Leq
+  | Greater
+  | Geq
   | And
   | Or
   | Matmul
-  | Greater
-  | Geq
-  | Leq
 
 type typ =
   | P_int
@@ -42,13 +42,13 @@ type expr =
   | Bool_literal of bool
   | Char_literal of char
   | String_literal of string
-  (* tensor *)
-  | Tensor of expr list
   | Id of id
   | Binop of expr * bop * expr
   (* function call *)
   | Call of id * expr list
-    (*expr * expr list instead of Id * expr list because lambda function is an expression *)
+  (* tensor *)
+  | Tensor of expr list
+  (*expr * expr list instead of Id * expr list because lambda function is an expression *)
   | Lambda of bind list * expr
 
 (* Parameters * body, lambda must be single-lined, the value of the single expression is the return value, the return type is inferred by the compiler*)
@@ -56,17 +56,17 @@ type expr =
 
 (* statements   *)
 type stmt =
+  | Expr of expr
   | Block of stmt list
   (* assigment *)
-  | Assign of id * expr
   | Bind of bind
+  | Assign of id * expr
   | BindAndAssign of bind * expr
   (* function declare  *)
   | Func of typ * id * bind list * stmt list
-  | If of expr * stmt
-  | Expr of expr
   | While of expr * stmt
   | For of id * expr * stmt
+  | If of expr * stmt
   | Return of expr
 
 type program = { imports : import list; globals : stmt list }
