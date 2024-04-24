@@ -245,3 +245,13 @@ let check program =
   let global_scope = create_scope None in
   let sstmts = check_statements global_scope globals [] in
   { simports = [ SImport ("1", "2") ]; sglobals = sstmts }
+
+(* Previous If implementation *)
+(* let check_if_statement cond_expr then_stmt else_stmt scope =
+  let cond_type, checked_cond = check_expr scope cond_expr in
+  if cond_type != P_bool then
+    raise (Failure "If statement contains non-boolean value");
+  let _, checked_then = check_statement scope then_stmt in
+  let _, checked_else = check_statement scope else_stmt in
+  P_void, SIf (checked_cond, checked_then, checked_else) *)
+
