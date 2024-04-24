@@ -32,5 +32,6 @@ def int test_for(){
     int j = 2;
     for(i in j){
         bool a = false;
+        int i = 15;
     }
 }
