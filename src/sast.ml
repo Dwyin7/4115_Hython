@@ -1,6 +1,5 @@
 (* make it possible to assigned function to variables (parameter types * return type) *)
 open Ast
-
 type simport = SImport of id * id
 
 (* expressions *)

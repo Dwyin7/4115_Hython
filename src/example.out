@@ -1,0 +1,19 @@
+; ModuleID = 'hython'
+source_filename = "hython"
+
+define void @main() {
+entry:
+  %x = alloca i32, align 4
+}
+
+define i32 @test_ir() {
+entry:
+  %y = alloca i32, align 4
+  store i32 2, i32* %y, align 4
+  %z = alloca i32, align 4
+  store i32 5, i32* %z, align 4
+  %z1 = load i32, i32* %z, align 4
+  %y2 = load i32, i32* %y, align 4
+  %tmp = add i32 %z1, %y2
+  store i32 %tmp, i32* %y, align 4
+}
