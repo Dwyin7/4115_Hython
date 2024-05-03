@@ -89,6 +89,11 @@ let print_call llval_expr builder =
   in
   L.build_call printf_func [| int_format_str; llval_expr |] "printf" builder
 
+let add_terminal builder instr =
+  match L.block_terminator (L.insertion_block builder) with
+  | Some _ -> ()
+  | None -> ignore (instr builder)
+
 let lookup n map =
   try StringMap.find n map with Not_found -> StringMap.find n map
 
@@ -150,6 +155,7 @@ let rec build_stmt func_map var_map builder stmt =
       let new_func_map, new_var_map, new_builder =
         build_function func_map var_map fdecl builder
       in
+      add_terminal new_builder (L.build_ret (L.const_int (llvm_type A.P_int) 0));
       (new_func_map, new_var_map, old_builder)
   | SBind (typ, id) ->
       let var = L.build_alloca (llvm_type typ) id builder in
@@ -223,7 +229,7 @@ let translate program =
   let main_func =
     SFunc
       {
-        sret_type = A.Void;
+        sret_type = A.P_int;
         sfname = "main";
         sparams = [];
         sbody = program.sglobals;
