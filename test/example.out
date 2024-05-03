@@ -1,0 +1,52 @@
+; ModuleID = 'hython'
+source_filename = "hython"
+
+@fmt = private unnamed_addr constant [4 x i8] c"%d\0A\00", align 1
+@fmt.1 = private unnamed_addr constant [4 x i8] c"%d\0A\00", align 1
+@fmt.2 = private unnamed_addr constant [4 x i8] c"%d\0A\00", align 1
+
+define i32 @main() {
+entry:
+  %c1 = alloca i1, align 1
+  store i1 true, i1* %c1, align 1
+  %c2 = alloca i1, align 1
+  store i1 false, i1* %c2, align 1
+  %c21 = load i1, i1* %c2, align 1
+  %c12 = load i1, i1* %c1, align 1
+  %test_result = call i32 @test(i1 %c21, i1 %c12)
+  ret i32 0
+}
+
+define i32 @test(i1 %c2, i1 %c1) {
+entry:
+  %c21 = alloca i1, align 1
+  store i1 %c2, i1* %c21, align 1
+  %c12 = alloca i1, align 1
+  store i1 %c1, i1* %c12, align 1
+  %c13 = load i1, i1* %c12, align 1
+  br i1 %c13, label %then, label %else7
+
+then:                                             ; preds = %entry
+  %c24 = load i1, i1* %c21, align 1
+  br i1 %c24, label %then5, label %else
+
+then5:                                            ; preds = %then
+  %printf = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @fmt, i32 0, i32 0), i32 0)
+  ret i32 0
+
+else:                                             ; preds = %then
+  %printf6 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @fmt.1, i32 0, i32 0), i32 9090)
+  ret i32 0
+
+if_end:                                           ; No predecessors!
+  ret i32 0
+
+else7:                                            ; preds = %entry
+  %printf8 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @fmt.2, i32 0, i32 0), i32 99999)
+  ret i32 0
+
+if_end9:                                          ; No predecessors!
+  ret i32 0
+}
+
+declare i32 @printf(i8*, ...)

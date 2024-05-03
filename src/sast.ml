@@ -1,5 +1,6 @@
 (* make it possible to assigned function to variables (parameter types * return type) *)
 open Ast
+
 type simport = SImport of id * id
 
 (* expressions *)
@@ -34,6 +35,7 @@ type sstmt =
   (* function declare  *)
   | SFunc of sfunc_decl
   | SIf of sexpr * sstmt
+  | SIfElse of sexpr * sstmt * sstmt
   | SExpr of sexpr
   | SWhile of sexpr * sstmt
   | SFor of id * sexpr * sstmt

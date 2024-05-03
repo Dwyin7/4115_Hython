@@ -1,3 +1,4 @@
 _build
 test.native
 *.native
+test/test.py
