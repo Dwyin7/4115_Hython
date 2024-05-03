@@ -1,0 +1,73 @@
+; ModuleID = 'hython'
+source_filename = "hython"
+declare i32 @printf(i8*, ...)
+
+@str_d2 = private unnamed_addr constant [16 x i8] c"Value of x: %d\0A\00", align 1
+@str_d3 = private unnamed_addr constant [16 x i8] c"Value of z: %d\0A\00", align 1
+
+define i32 @main() {
+entry:
+  %x = alloca i32, align 4
+  store i32 5, i32* %x, align 4
+  %z = alloca i32, align 4
+  store i32 10000, i32* %z, align 4
+  %z1 = load i32, i32* %z, align 4
+  %x2 = load i32, i32* %x, align 4
+  %outer_result = call i32 @outer(i32 %z1, i32 %x2, i32 123, i32 456)
+  
+  ret i32 0
+
+}
+
+define i32 @outer(i32 %z, i32 %x, i32 %d, i32 %f) {
+entry:
+  %z1 = alloca i32, align 4
+  store i32 %z, i32* %z1, align 4
+  %x2 = alloca i32, align 4
+  store i32 %x, i32* %x2, align 4
+  %d3 = alloca i32, align 4
+  store i32 %d, i32* %d3, align 4
+  %f4 = alloca i32, align 4
+  store i32 %f, i32* %f4, align 4
+  store i32 10, i32* %x2, align 4
+
+
+
+  %z5 = load i32, i32* %z1, align 4
+  %x6 = load i32, i32* %x2, align 4
+  %f7 = load i32, i32* %f4, align 4
+  %d8 = load i32, i32* %d3, align 4
+  %x9 = load i32, i32* %x2, align 4
+  %z10 = load i32, i32* %z1, align 4
+  %inner_result = call i32 @inner(i32 %z5, i32 %x6, i32 %f7, i32 %d8, i32 %x9, i32 %z10)
+  ret i32 0
+
+}
+
+define i32 @inner(i32 %z, i32 %x, i32 %f, i32 %d, i32 %a, i32 %b) {
+entry:
+  %z1 = alloca i32, align 4
+  store i32 %z, i32* %z1, align 4
+  %x2 = alloca i32, align 4
+  store i32 %x, i32* %x2, align 4
+  %f3 = alloca i32, align 4
+  store i32 %f, i32* %f3, align 4
+  %d4 = alloca i32, align 4
+  store i32 %d, i32* %d4, align 4
+  %a5 = alloca i32, align 4
+  store i32 %a, i32* %a5, align 4
+  %b6 = alloca i32, align 4
+  store i32 %b, i32* %b6, align 4
+  %x7 = load i32, i32* %x2, align 4
+  %tmp = add i32 %x7, 1
+  %d8 = load i32, i32* %d4, align 4
+  %tmp9 = add i32 %d8, 1
+  %f10 = load i32, i32* %f3, align 4
+  %tmp11 = add i32 %f10, 1
+  
+  %x_val = load i32, i32* %b6, align 4
+  %1 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([16 x i8], [16 x i8]* @str_d2, i32 0, i32 0), i32 %x_val)
+
+  ret i32 0
+
+}

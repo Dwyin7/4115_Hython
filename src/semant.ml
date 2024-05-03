@@ -153,8 +153,16 @@ let rec check_expr scope expr =
       in
       List.iter2 check_type_pairs formals_typ typs;
       (func_signature.ret_typ, SCall (id, sexprs))
+
 (* TODO: Tensor *)
 (* TODO: Lambda *)
+
+(* check if the expr is bool type  *)
+let check_bool_expr scope e =
+  let t, e' = check_expr scope e in
+  match t with
+  | P_bool -> (t, e')
+  | _ -> raise (Failure ("expected Boolean expression in " ^ string_of_expr e))
 
 let rec check_statement (scope : symbol_table) (statement : stmt) =
   match statement with
@@ -252,8 +260,15 @@ let rec check_statement (scope : symbol_table) (statement : stmt) =
         check_statement loop_scope_with_iterator loop_stmt
       in
       (scope, SFor (iterator, (P_int, checked_start_expr), checked_loop_stmt))
-  (* TODO: If *)
+  (* TODO: If else *)
+  | IfElse (e, s1, s2) ->
+      ( scope,
+        SIfElse
+          ( check_bool_expr scope e,
+            snd (check_statement scope s1),
+            snd (check_statement scope s2) ) )
   (* TODO: Return *)
+  (* TODO: If *)
   | x -> failwith ("Statement type not handled yet: " ^ string_of_stmt x)
 
 (* semantic checking of ast, return Sast if success *)

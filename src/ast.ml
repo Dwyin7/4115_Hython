@@ -67,7 +67,10 @@ type stmt =
   | Func of func_decl
   | While of expr * stmt
   | For of id * expr * stmt
+  (* if  *)
   | If of expr * stmt
+  (* if else  *)
+  | IfElse of expr * stmt * stmt
   | Return of expr
 
 and func_decl = {

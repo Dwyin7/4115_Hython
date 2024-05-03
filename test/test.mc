@@ -26,9 +26,9 @@ def int test_primitive(int a, float b, char c){
     while(x<=100){
         x = x + 1;
     }
-    for(x in y){
-        int i = x;
-    }
+    #for(x in y){
+    #    int i = x;
+    #}
 
     return x;
     x = 123;

@@ -166,6 +166,38 @@ let rec build_stmt func_map var_map builder stmt =
       let e' = build_expr func_map var_map builder e in
       ignore (L.build_store e' (lookup id var_map).the_var builder);
       (func_map, var_map, builder)
+  | SIfElse (pred, then_stmt, else_stmt) ->
+      let bool_val = build_expr func_map var_map builder pred in
+      (* find the parent  *)
+      let the_function = L.insertion_block builder |> L.block_parent in
+      (* append the then block *)
+      let then_bb = L.append_block context "then" the_function in
+      ignore
+        (build_stmt func_map var_map
+           (L.builder_at_end context then_bb)
+           then_stmt);
+      (* append the else block *)
+      let else_bb = L.append_block context "else" the_function in
+      ignore
+        (build_stmt func_map var_map
+           (L.builder_at_end context else_bb)
+           else_stmt);
+
+      let end_bb = L.append_block context "if_end" the_function in
+      let build_br_end = L.build_br end_bb in
+      (* partial function *)
+      add_terminal (L.builder_at_end context then_bb) build_br_end;
+      add_terminal (L.builder_at_end context else_bb) build_br_end;
+
+      ignore (L.build_cond_br bool_val then_bb else_bb builder);
+      (func_map, var_map, L.builder_at_end context end_bb)
+  | SBlock stmts ->
+      let new_func_map, new_var_map, new_builder =
+        build_stmt_list func_map var_map builder stmts
+      in
+      add_terminal new_builder (L.build_ret (L.const_int (llvm_type A.P_int) 0));
+      (new_func_map, new_var_map, old_builder)
+  | _ -> failwith "error"
 
 and build_function func_map var_map fdecl builder =
   let name = fdecl.sfname in

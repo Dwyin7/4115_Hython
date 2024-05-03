@@ -125,7 +125,7 @@ stmt_rule:
   | RETURN expr_rule SEMI { Return($2) }
   | WHILE LPAREN expr_rule RPAREN stmt_rule      { While($3, $5) }
   | FOR LPAREN ID IN expr_rule RPAREN stmt_rule    { For($3, $5, $7) }
-  // | IF expr_rule stmt_rule         { If($2, $3) }
+  | IF LPAREN expr_rule RPAREN stmt_rule ELSE stmt_rule       { IfElse($3, $5, $7) } //if else parsing
 
 
 vdecl_rule:
