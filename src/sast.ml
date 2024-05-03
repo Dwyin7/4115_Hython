@@ -1,6 +1,5 @@
 (* make it possible to assigned function to variables (parameter types * return type) *)
 open Ast
-
 type simport = SImport of id * id
 
 (* expressions *)
@@ -33,12 +32,19 @@ type sstmt =
   | SBind of bind
   | SBindAndAssign of bind * sexpr
   (* function declare  *)
-  | SFunc of typ * id * bind list * sstmt list
+  | SFunc of sfunc_decl
   | SIf of sexpr * sstmt
   | SExpr of sexpr
   | SWhile of sexpr * sstmt
   | SFor of id * sexpr * sstmt
   | SReturn of sexpr
+
+and sfunc_decl = {
+  sret_type : typ;
+  sfname : id;
+  sparams : bind list;
+  sbody : sstmt list;
+}
 
 type sprogram = { simports : simport list; sglobals : sstmt list }
 
@@ -81,7 +87,7 @@ let rec string_of_sstmt = function
   | SBind (t, id) -> string_of_bind (t, id)
   | SBindAndAssign ((t, id), e) ->
       string_of_bind (t, id) ^ " = " ^ string_of_sexpr e
-  | SFunc (rt, id, params, body) ->
+  | SFunc { sret_type = rt; sfname = id; sparams = params; sbody = body } ->
       "func " ^ string_of_typ rt ^ " " ^ id ^ "("
       ^ String.concat ", " (List.map string_of_bind params)
       ^ ") "

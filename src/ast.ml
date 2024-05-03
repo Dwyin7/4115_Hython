@@ -55,6 +55,7 @@ type expr =
 (*Lambda function is anomoyous but can be assigned to a func variable *)
 
 (* statements   *)
+
 type stmt =
   | Expr of expr
   | Block of stmt list
@@ -63,11 +64,18 @@ type stmt =
   | Assign of id * expr
   | BindAndAssign of bind * expr
   (* function declare  *)
-  | Func of typ * id * bind list * stmt list
+  | Func of func_decl
   | While of expr * stmt
   | For of id * expr * stmt
   | If of expr * stmt
   | Return of expr
+
+and func_decl = {
+  ret_type : typ;
+  fname : id;
+  params : bind list;
+  body : stmt list;
+}
 
 type program = { imports : import list; globals : stmt list }
 
@@ -130,7 +138,7 @@ let rec string_of_stmt = function
   | Assign (id, e) -> Printf.sprintf "%s = %s;" id (string_of_expr e)
   | BindAndAssign ((t, id), e) ->
       Printf.sprintf "%s %s = %s;" (string_of_typ t) id (string_of_expr e)
-  | Func (t, id, bs, stmts) ->
+  | Func { ret_type = t; fname = id; params = bs; body = stmts } ->
       let formals =
         String.concat ", "
           (List.map

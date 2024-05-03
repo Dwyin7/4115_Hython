@@ -1,0 +1,28 @@
+import 1 as 2
+int x
+x = (int) 123
+int y
+y = (int) x
+x = (int) 10
+char z = (char) 's'
+func void test_scope(char x) {
+int z = (int) 10
+x = (char) 'x'
+}
+func int test_while() {
+int x = (int) 3
+x = (int) (int) x + (int) 1
+while (bool) (int) x > (int) 0 {
+x = (int) (int) x - (int) 1
+int y = (int) 0
+}
+char y = (char) 'y'
+}
+func int test_for() {
+int i = (int) 0
+int j = (int) 2
+for i in (int) j {
+bool a = (bool) false
+int i = (int) 15
+}
+}
