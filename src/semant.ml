@@ -36,6 +36,7 @@ let string_of_symbol_table scope =
   "Variables:\n" ^ variables_str ^ "\nFunctions:\n" ^ functions_str
 
 let create_scope parent =
+  (* let init_functions = StringMap.add "print" value StringMap.empty in *)
   { variables = StringMap.empty; functions = StringMap.empty; parent }
 
 let add_variable name typ scope =
@@ -198,6 +199,8 @@ let rec check_statement (scope : symbol_table) (statement : stmt) =
         check_assign typ e_typ err;
         (new_scope, SBindAndAssign ((typ, id), (e_typ, sx)))
   | Func { ret_type = typ; fname = id; params = binds; body = stmts } ->
+      if id == "print" then
+        raise (Failure "Cannot declare function named print");
       if StringMap.mem id scope.functions then
         raise (Failure ("Already decalered: " ^ id ^ " , in this scope"))
       else
@@ -267,7 +270,19 @@ let rec check_statements scope statments sstatments =
 let check program =
   let imports = program.imports in
   let globals = program.globals in
-  let global_scope = create_scope None in
+  let init_scope = create_scope None in
+  let print_func =
+    StringMap.add "print"
+      { ret_typ = P_int; formals = [ (P_int, "x") ] }
+      StringMap.empty
+  in
+  let global_scope =
+    {
+      variables = init_scope.variables;
+      functions = print_func;
+      parent = init_scope.parent;
+    }
+  in
   let sstmts = check_statements global_scope globals [] in
   { simports = [ SImport ("1", "2") ]; sglobals = sstmts }
 
