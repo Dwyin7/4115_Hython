@@ -63,33 +63,6 @@ let str_of_terminator builder =
 
 let str_of_block block = L.string_of_llvalue (L.value_of_block block)
 
-(* stack for build if else  *)
-(* let end_block_stack = ref []
-   let push_end_block block = end_block_stack := block :: !end_block_stack
-
-   let pop_end_block () =
-     match !end_block_stack with
-     | [] -> failwith "No current end block available"
-     | hd :: tl ->
-         end_block_stack := tl;
-         hd
-
-   (* peek *)
-   let current_end_block () =
-     match !end_block_stack with
-     | [] -> failwith "No current end block available"
-     | hd :: _ -> hd
-
-   let print_end_block_stack () =
-     Printf.printf "Current End Block Stack (size %d):\n"
-       (List.length !end_block_stack);
-     match !end_block_stack with
-     | [] -> Printf.printf "The stack is empty.\n"
-     | _ ->
-         List.iter
-           (fun block -> Printf.printf "Block: %s\n" (str_of_block block))
-           !end_block_stack *)
-
 (* some helper functions  *)
 let prepare_builder builder =
   let current_block = L.insertion_block builder in
@@ -161,7 +134,11 @@ let rec build_expr func_map var_map builder sexpr : L.llvalue =
       | A.Sub -> L.build_sub
       | A.Mul -> L.build_mul
       | A.Div -> L.build_sdiv
-      | _ -> failwith "Operator not supported")
+      | A.Or -> L.build_or
+      | A.Equal -> L.build_icmp L.Icmp.Eq
+      | A.Neq -> L.build_icmp L.Icmp.Ne
+      | A.Less -> L.build_icmp L.Icmp.Slt
+      | _ -> failwith (string_of_sexpr sexpr))
         e1' e2' "tmp" builder
   | SCall ("print", [ e ]) ->
       print_call (build_expr func_map var_map builder e) builder
@@ -191,6 +168,7 @@ let rec build_expr func_map var_map builder sexpr : L.llvalue =
 (* build the statement, if control instr, use it as the terminator instr *)
 let rec build_stmt func_map var_map builder stmt
     (control_instr_opt : (L.llbuilder -> L.llvalue) option) =
+  (* find the parent function *)
   (* need to store the prev state *)
   let old_builder = builder in
   (* Printf.printf "cur expr %s \n" (string_of_sstmt stmt); *)
@@ -216,9 +194,8 @@ let rec build_stmt func_map var_map builder stmt
       ignore (L.build_store e' (lookup id var_map).the_var builder);
       (func_map, var_map, builder)
   | SIfElse (pred, then_stmt, else_stmt) ->
-      let bool_val = build_expr func_map var_map builder pred in
-      (* find the parent function *)
       let the_function = L.block_parent (L.insertion_block builder) in
+      let bool_val = build_expr func_map var_map builder pred in
 
       (* the end if-else *)
       let end_bb = L.append_block context "if_end" the_function in
@@ -257,10 +234,6 @@ let rec build_stmt func_map var_map builder stmt
 
       ignore (L.build_cond_br bool_val then_bb else_bb builder);
 
-      (* add_terminal
-         (L.builder_at_end context end_bb)
-         (L.build_ret (L.const_int (llvm_type A.P_int) 0)); *)
-
       (* Printf.printf "then_builder is: %s\n" (str_of_terminator then_builder);
          Printf.printf "pred is: %s\n" (string_of_sexpr pred);
          Printf.printf "else_builder is: %s\n" (str_of_terminator else_builder);
@@ -270,8 +243,6 @@ let rec build_stmt func_map var_map builder stmt
       (* push the end bb  *)
       (* push_end_block end_bb;
          print_end_block_stack (); *)
-
-      (* print_end_block_stack (); *)
       (* Move the builder to the end block *)
       let end_builder = L.builder_at_end context end_bb in
       (* cur end_builder terminator is the previous terminator  *)
@@ -283,6 +254,33 @@ let rec build_stmt func_map var_map builder stmt
       (* add_terminal builder (L.build_ret (L.const_int (llvm_type A.P_int) 0)); *)
       (new_func_map, new_var_map, old_builder)
       (* (new_func_map, new_var_map, new_builder) *)
+  | SWhile (pred, body) ->
+      let the_function = L.block_parent (L.insertion_block builder) in
+      (* check condition  *)
+      let while_bb = L.append_block context "while" the_function in
+      let build_br_while = L.build_br while_bb in
+      (* partial function *)
+      ignore (build_br_while builder);
+      let while_builder = L.builder_at_end context while_bb in
+      let bool_val = build_expr func_map var_map while_builder pred in
+
+      (* the body *)
+      let body_bb = L.append_block context "while_body" the_function in
+      let body_builder = L.builder_at_end context body_bb in
+      let _, _, body_builder_new =
+        build_stmt func_map var_map body_builder body (Some build_br_while)
+      in
+      add_terminal body_builder_new build_br_while;
+
+      (* the end  *)
+      let end_bb = L.append_block context "while_end" the_function in
+
+      ignore (L.build_cond_br bool_val body_bb end_bb while_builder);
+      let end_builder = L.builder_at_end context end_bb in
+      (match control_instr_opt with
+      | Some control_instr -> add_terminal end_builder control_instr
+      | None -> ());
+      (func_map, var_map, end_builder)
   | _ -> failwith "error"
 
 and build_function func_map var_map fdecl builder =
