@@ -100,6 +100,10 @@ let rec string_of_sstmt = function
   | SFor (id, e, s) ->
       "for " ^ id ^ " in " ^ string_of_sexpr e ^ " " ^ string_of_sstmt s
   | SReturn e -> "return " ^ string_of_sexpr e
+  | SIfElse (sexpr, sstmt1, sstmt2) ->
+      "IF: " ^ string_of_sexpr sexpr ^ ", Then: " ^ string_of_sstmt sstmt1
+      ^ "Else: " ^ string_of_sstmt sstmt2
+  | _ -> failwith "not yet"
 
 (* Pretty print the program *)
 let string_of_sprogram { simports; sglobals } =
