@@ -49,4 +49,5 @@ def int test_deep_nested() {
 }
 
 test_deep_nested();
+test_deep_nested();
 print(0);
