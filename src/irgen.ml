@@ -54,7 +54,53 @@ let str_of_func_map func_map =
     func_map;
   String.concat "\n" (List.rev !str_list)
 
+let str_of_terminator builder =
+  let teminator_or_not = L.block_terminator (L.insertion_block builder) in
+  match teminator_or_not with
+  | Some terminator ->
+      "Builder terminal is:--- '" ^ L.string_of_llvalue terminator ^ "---'\n"
+  | _ -> "Builder terminal is: None\n"
+
+let str_of_block block = L.string_of_llvalue (L.value_of_block block)
+
+(* stack for build if else  *)
+(* let end_block_stack = ref []
+   let push_end_block block = end_block_stack := block :: !end_block_stack
+
+   let pop_end_block () =
+     match !end_block_stack with
+     | [] -> failwith "No current end block available"
+     | hd :: tl ->
+         end_block_stack := tl;
+         hd
+
+   (* peek *)
+   let current_end_block () =
+     match !end_block_stack with
+     | [] -> failwith "No current end block available"
+     | hd :: _ -> hd
+
+   let print_end_block_stack () =
+     Printf.printf "Current End Block Stack (size %d):\n"
+       (List.length !end_block_stack);
+     match !end_block_stack with
+     | [] -> Printf.printf "The stack is empty.\n"
+     | _ ->
+         List.iter
+           (fun block -> Printf.printf "Block: %s\n" (str_of_block block))
+           !end_block_stack *)
+
 (* some helper functions  *)
+let prepare_builder builder =
+  let current_block = L.insertion_block builder in
+  match L.block_terminator current_block with
+  | None ->
+      L.position_at_end current_block
+        builder (* No terminator, position at the end of the block *)
+  | Some terminator ->
+      L.position_before terminator
+        builder (* Position builder before the terminator *)
+
 let sorted_map_to_list map =
   let sorted_list =
     StringMap.fold (fun key value acc -> (key, value) :: acc) map []
@@ -97,7 +143,9 @@ let add_terminal builder instr =
 let lookup n map =
   try StringMap.find n map with Not_found -> StringMap.find n map
 
-let rec build_expr func_map var_map builder ((_, e) : sexpr) : L.llvalue =
+let rec build_expr func_map var_map builder sexpr : L.llvalue =
+  prepare_builder builder;
+  let _, e = sexpr in
   match e with
   | SInt_literal i -> L.const_int (L.i32_type context) i
   | SFloat_literal f -> L.const_float (L.float_type context) f
@@ -123,9 +171,6 @@ let rec build_expr func_map var_map builder ((_, e) : sexpr) : L.llvalue =
       let snap_shot_var_key_lst =
         sorted_map_to_key_list func_map_val.snap_shot_var_map
       in
-      (* Printf.printf "New calls snap: [";
-         List.iter (fun key -> Printf.printf "(%s " key) snap_shot_var_key_lst;
-         Printf.printf "]\n"; *)
       let ids =
         List.fold_right
           (fun key acc -> (A.Void, SId key) :: acc)
@@ -143,19 +188,23 @@ let rec build_expr func_map var_map builder ((_, e) : sexpr) : L.llvalue =
         builder
   | _ -> failwith "Expression not supported"
 
-(* build the statement *)
-let rec build_stmt func_map var_map builder stmt =
+(* build the statement, if control instr, use it as the terminator instr *)
+let rec build_stmt func_map var_map builder stmt
+    (control_instr_opt : (L.llbuilder -> L.llvalue) option) =
   (* need to store the prev state *)
   let old_builder = builder in
+  (* Printf.printf "cur expr %s \n" (string_of_sstmt stmt); *)
   match stmt with
   | SExpr e ->
+      (* Printf.printf "terminator %s \n" (str_of_terminator builder); *)
       ignore (build_expr func_map var_map builder e);
       (func_map, var_map, builder)
   | SFunc fdecl ->
       let new_func_map, new_var_map, new_builder =
         build_function func_map var_map fdecl builder
       in
-      add_terminal new_builder (L.build_ret (L.const_int (llvm_type A.P_int) 0));
+      (* function terminator *)
+      add_terminal new_builder (L.build_ret (L.const_int (llvm_type A.P_int) 1));
       (new_func_map, new_var_map, old_builder)
   | SBind (typ, id) ->
       let var = L.build_alloca (llvm_type typ) id builder in
@@ -168,42 +217,76 @@ let rec build_stmt func_map var_map builder stmt =
       (func_map, var_map, builder)
   | SIfElse (pred, then_stmt, else_stmt) ->
       let bool_val = build_expr func_map var_map builder pred in
-      (* find the parent  *)
-      let the_function = L.insertion_block builder |> L.block_parent in
-      (* append the then block *)
-      let then_bb = L.append_block context "then" the_function in
-      ignore
-        (build_stmt func_map var_map
-           (L.builder_at_end context then_bb)
-           then_stmt);
-      (* append the else block *)
-      let else_bb = L.append_block context "else" the_function in
-      ignore
-        (build_stmt func_map var_map
-           (L.builder_at_end context else_bb)
-           else_stmt);
+      (* find the parent function *)
+      let the_function = L.block_parent (L.insertion_block builder) in
 
+      (* the end if-else *)
       let end_bb = L.append_block context "if_end" the_function in
+      let end_builder = L.builder_at_end context end_bb in
       let build_br_end = L.build_br end_bb in
-      (* partial function *)
-      add_terminal (L.builder_at_end context then_bb) build_br_end;
-      add_terminal (L.builder_at_end context else_bb) build_br_end;
+
+      (* the then block *)
+      let then_bb = L.append_block context "then" the_function in
+      let then_builder = L.builder_at_end context then_bb in
+      let _, _, then_builder_new =
+        build_stmt func_map var_map then_builder then_stmt (Some build_br_end)
+      in
+
+      (* the else block *)
+      let else_bb = L.append_block context "else" the_function in
+      let else_builder = L.builder_at_end context else_bb in
+      let _, _, else_builder_new =
+        build_stmt func_map var_map else_builder else_stmt (Some build_br_end)
+      in
+
+      (* Printf.printf "else_builder is: %s\n" (str_of_terminator else_builder); *)
+
+      (* ignore (build_stmt func_map var_map else_builder else_stmt); *)
+
+      (* Adds does not already have a terminator *)
+
+      (* add_terminal (L.builder_at_end context then_bb) build_br_end;
+         add_terminal (L.builder_at_end context else_bb) build_br_end; *)
+      (* Printf.printf "then_builder_new is: %s\n" (str_of_terminator then_builder_new); *)
+      (* Printf.printf "else_builder_new is: %s\n" (str_of_terminator else_builder_new); *)
+      add_terminal then_builder_new build_br_end;
+      add_terminal else_builder_new build_br_end;
+      (match control_instr_opt with
+      | Some control_instr -> add_terminal end_builder control_instr
+      | None -> ());
 
       ignore (L.build_cond_br bool_val then_bb else_bb builder);
-      (func_map, var_map, L.builder_at_end context end_bb)
+
+      (* add_terminal
+         (L.builder_at_end context end_bb)
+         (L.build_ret (L.const_int (llvm_type A.P_int) 0)); *)
+
+      (* Printf.printf "then_builder is: %s\n" (str_of_terminator then_builder);
+         Printf.printf "pred is: %s\n" (string_of_sexpr pred);
+         Printf.printf "else_builder is: %s\n" (str_of_terminator else_builder);
+         Printf.printf "Cur_end_blcok is: %s\n" (str_of_block end_bb); *)
+
+      (* print_end_block_stack (); *)
+      (* push the end bb  *)
+      (* push_end_block end_bb;
+         print_end_block_stack (); *)
+
+      (* print_end_block_stack (); *)
+      (* Move the builder to the end block *)
+      let end_builder = L.builder_at_end context end_bb in
+      (* cur end_builder terminator is the previous terminator  *)
+      (func_map, var_map, end_builder)
   | SBlock stmts ->
       let new_func_map, new_var_map, new_builder =
-        build_stmt_list func_map var_map builder stmts
+        build_stmt_list func_map var_map builder stmts control_instr_opt
       in
-      add_terminal new_builder (L.build_ret (L.const_int (llvm_type A.P_int) 0));
+      (* add_terminal builder (L.build_ret (L.const_int (llvm_type A.P_int) 0)); *)
       (new_func_map, new_var_map, old_builder)
+      (* (new_func_map, new_var_map, new_builder) *)
   | _ -> failwith "error"
 
 and build_function func_map var_map fdecl builder =
   let name = fdecl.sfname in
-  (* Printf.printf "Building function name: %s\n" name; *)
-  (* Printf.printf "Var map (outer scope):\n %s\n" (str_of_var_map var_map); *)
-  (* Printf.printf "Current func map: %s\n" func_map;  *)
   let formal_types =
     Array.of_list (List.map (fun (t, _) -> llvm_type t) fdecl.sparams)
   in
@@ -244,13 +327,14 @@ and build_function func_map var_map fdecl builder =
 
   (* build fdecl.sbody *)
   let updated_func_map, updated_var_map, final_builder =
-    build_stmt_list new_func_map new_var_map new_builder fdecl.sbody
+    build_stmt_list new_func_map new_var_map new_builder fdecl.sbody None
   in
   (new_func_map, var_map, final_builder)
 
-and build_stmt_list func_map var_map builder stmts =
+and build_stmt_list func_map var_map builder stmts control_instr_opt =
   List.fold_left
-    (fun (f_map, v_map, bldr) stmt -> build_stmt f_map v_map bldr stmt)
+    (fun (f_map, v_map, bldr) stmt ->
+      build_stmt f_map v_map bldr stmt control_instr_opt)
     (func_map, var_map, builder)
     stmts
 
@@ -268,6 +352,6 @@ let translate program =
       }
   in
   let func_map, global_vars, _ =
-    build_stmt func_map global_vars builder main_func
+    build_stmt func_map global_vars builder main_func None
   in
   the_module
