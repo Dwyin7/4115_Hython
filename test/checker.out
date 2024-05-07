@@ -26,3 +26,15 @@ bool a = (bool) false
 int i = (int) 15
 }
 }
+T_int b = (int tensor[2, 3]) tensor((int tensor[3]) tensor((int) 1, (int) 2, (int) 3) shape: 3, (int tensor[3]) tensor((int) 1, (int) 2, (int) 3) shape: 3) shape: 2, 3
+T_int a = (int tensor[2, 2, 3]) tensor((int tensor[2, 3]) b, (int tensor[2, 3]) b) shape: 2, 2, 3
+(int tensor[2, 3]) b
+(int tensor[2, 2, 3]) a
+int i = (int) 0
+T_int c = (int tensor[3]) tensor((int) 1, (int) 2, (int) 3) shape: 3
+T_int D = (int tensor[2, 3]) tensor((int tensor[3]) tensor((int) 1, (int) 1, (int) i) shape: 3, (int tensor[3]) c) shape: 2, 3
+T_float f = (float tensor[2, 3]) tensor((float tensor[3]) tensor((float) 1., (float) 2., (float) 3.) shape: 3, (float tensor[3]) tensor((float) 1., (float) 2., (float) 3.) shape: 3) shape: 2, 3
+T_float e = (float tensor[3, 2]) tensor((float tensor[2]) tensor((float) 1., (float) 2.) shape: 2, (float tensor[2]) tensor((float) 1., (float) 2.) shape: 2, (float tensor[2]) tensor((float) 3., (float) 3.) shape: 2) shape: 3, 2
+T_int g = (int tensor[3, 1]) tensor((int tensor[1]) tensor((int) 1) shape: 1, (int tensor[1]) tensor((int) 2) shape: 1, (int tensor[1]) tensor((int) 3) shape: 1) shape: 3, 1
+(int tensor[1]) (int tensor[3]) c @ (int tensor[3, 1]) g
+(float tensor[3, 3]) (float tensor[3, 2]) e @ (float tensor[2, 3]) f

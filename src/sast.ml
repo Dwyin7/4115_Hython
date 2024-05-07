@@ -1,10 +1,24 @@
 (* make it possible to assigned function to variables (parameter types * return type) *)
 open Ast
 
+type styp =
+  | SP_int
+  | SP_bool
+  | SP_float
+  | SP_char
+  | SP_string
+  | ST_int of int list    (* Integer tensor with shape information *)
+  | ST_bool of int list   (* Boolean tensor with shape information *)
+  | ST_float of int list  (* Floating point tensor with shape information *)
+  | ST_char of int list   (* Character tensor with shape information *)
+  | ST_string of int list (* String tensor with shape information *)
+  | SVoid
+  | SFunc
+
 type simport = SImport of id * id
 
 (* expressions *)
-type sexpr = typ * sx
+type sexpr = styp * sx
 
 and sx =
   | SNoexpr
@@ -14,7 +28,7 @@ and sx =
   | SChar_literal of char
   | SString_literal of string
   (* tensor *)
-  | STensor of sexpr list
+  | STensor of sexpr list * int list  (* Added shape information *)
   | SId of id
   | SBinop of sexpr * bop * sexpr
   (* function call *)
@@ -42,7 +56,7 @@ type sstmt =
   | SReturn of sexpr
 
 and sfunc_decl = {
-  sret_type : typ;
+  sret_type : styp;
   sfname : id;
   sparams : bind list;
   sbody : sstmt list;
@@ -51,12 +65,25 @@ and sfunc_decl = {
 type sprogram = { simports : simport list; sglobals : sstmt list }
 
 (* Pretty-printing functions *)
+let string_of_styp = function
+  | SP_int -> "int"
+  | SP_bool -> "bool"
+  | SP_float -> "float"
+  | SP_char -> "char"
+  | SP_string -> "string"
+  | ST_int dims -> "int tensor[" ^ (String.concat ", " (List.map string_of_int dims)) ^ "]"
+  | ST_bool dims -> "bool tensor[" ^ (String.concat ", " (List.map string_of_int dims)) ^ "]"
+  | ST_float dims -> "float tensor[" ^ (String.concat ", " (List.map string_of_int dims)) ^ "]"
+  | ST_char dims -> "char tensor[" ^ (String.concat ", " (List.map string_of_int dims)) ^ "]"
+  | ST_string dims -> "string tensor[" ^ (String.concat ", " (List.map string_of_int dims)) ^ "]"
+  | SVoid -> "void"
+  | SFunc -> "Function"
 
 (* Pretty print binary operators *)
 
 (* Pretty print expressions *)
 let rec string_of_sexpr (t, e) =
-  "(" ^ string_of_typ t ^ ") "
+  "(" ^ string_of_styp t ^ ") "
   ^
   match e with
   | SNoexpr -> "noexpr"
@@ -66,7 +93,8 @@ let rec string_of_sexpr (t, e) =
   | SBool_literal false -> "false"
   | SChar_literal c -> "'" ^ Char.escaped c ^ "'"
   | SString_literal s -> "\"" ^ s ^ "\""
-  | STensor es -> "[" ^ String.concat ", " (List.map string_of_sexpr es) ^ "]"
+  | STensor (es, shape) ->
+    "tensor(" ^ String.concat ", " (List.map string_of_sexpr es) ^ ")" ^ " shape: " ^ String.concat ", " (List.map string_of_int shape) 
   | SId s -> s
   | SBinop (e1, o, e2) ->
       string_of_sexpr e1 ^ " " ^ string_of_bop o ^ " " ^ string_of_sexpr e2
@@ -90,7 +118,7 @@ let rec string_of_sstmt = function
   | SBindAndAssign ((t, id), e) ->
       string_of_bind (t, id) ^ " = " ^ string_of_sexpr e
   | SFunc { sret_type = rt; sfname = id; sparams = params; sbody = body } ->
-      "func " ^ string_of_typ rt ^ " " ^ id ^ "("
+      "func " ^ string_of_styp rt ^ " " ^ id ^ "("
       ^ String.concat ", " (List.map string_of_bind params)
       ^ ") "
       ^ string_of_sstmt (SBlock body)
