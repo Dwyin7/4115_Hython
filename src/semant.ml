@@ -72,7 +72,6 @@ let rec find_variable_current_scope (scope : symbol_table) name =
   with Not_found ->
     raise (Failure ("Variable not declared in the current scope: " ^ name))
 
-(* TODO: change!!!!!!!!!! add string char and others *)
 let check_assign lvaluet rvaluet err =
   match lvaluet, rvaluet with
   | ST_int _, ST_int _
@@ -90,7 +89,7 @@ let convert_typ_to_styp (typ : Ast.typ) (shape : int list) : Sast.styp =
   | Ast.P_float -> Sast.SP_float
   | Ast.P_char -> Sast.SP_char
   | Ast.P_string -> Sast.SP_string
-  | Ast.T_int -> Sast.ST_int shape  (* Using provided shape for tensor types *)
+  | Ast.T_int -> Sast.ST_int shape  
   | Ast.T_bool -> Sast.ST_bool shape
   | Ast.T_float -> Sast.ST_float shape
   | Ast.T_char -> Sast.ST_char shape
@@ -145,10 +144,8 @@ let rec check_expr scope expr =
                   (Failure
                      ("Invalid operands for binary operator " ^ string_of_bop op))
             )
-        (* TODO: Fix Matmul after Tensor is implemented !!!!!!!!!!!!!!! *)
         | Matmul -> (
           let can_multiply (shape1 : int list) (shape2 : int list) : int list option =
-            (* No need to reverse the lists initially *)
             match shape1, shape2 with
             | [], _ | _, [] -> None  (* Check if either shape list is empty, which means invalid input *)
             | _ ->
@@ -193,21 +190,21 @@ let rec check_expr scope expr =
       in
       List.iter2 check_type_pairs formals_typ typs;
       (func_signature.ret_typ, SCall (id, sexprs))
-  | Tensor exprs -> (*input: expr list*)
+  | Tensor exprs -> 
       let scalar_to_ast_tensor_type = function
       | SP_int -> T_int
       | SP_float -> T_float
       | SP_char -> T_char
       | SP_string -> T_string
       | SP_bool -> T_bool 
-      | ST_int _ -> T_int    (* Ignore shape information *)
+      | ST_int _ -> T_int    
       | ST_float _ -> T_float
       | ST_char _ -> T_char
       | ST_string _ -> T_string
       | ST_bool _ -> T_bool
       | typ -> raise (Failure ("No tensor type equivalent for " ^ string_of_styp typ))
       in
-      let infer_type sexprs= (* take the sexprs of every element as a list *)
+      let infer_type sexprs= (* take the sexprs of every element as a list, only check type *)
         match sexprs with
         | [] -> raise (Failure "Empty tensor encountered")
         | (styp, _) :: _ as typed_exprs -> (* extract the type of the first expression*)
@@ -228,7 +225,7 @@ let rec check_expr scope expr =
                     (match find_variable scope id with
                      | ST_int shape | ST_float shape | ST_char shape | ST_string shape | ST_bool shape -> shape
                      | _ -> [])
-                | SInt_literal _ | SFloat_literal _ | SChar_literal _ | SString_literal _ | SBool_literal _ -> []  (* Treat scalars as 1D tensors *)
+                | SInt_literal _ | SFloat_literal _ | SChar_literal _ | SString_literal _ | SBool_literal _ -> []  (* Treat scalars as 0D tensors *)
                 | _ -> raise (Failure "Unsupported tensor element type")
             ) sexprs in
             let common_shape = List.hd shapes in
@@ -237,12 +234,11 @@ let rec check_expr scope expr =
             else
                 raise (Failure "Sub-tensor shapes are not uniform")
         in
-      let typed_exprs = List.map (check_expr scope) exprs in (* get sexpr for each expr in Tensor*)
+      let typed_exprs = List.map (check_expr scope) exprs in 
       let tensor_type = infer_type typed_exprs in
       let shape = calculate_tensor_shape scope typed_exprs in
       (*let shape = [0;0] in*)
       (convert_typ_to_styp tensor_type shape, STensor(typed_exprs, shape))
-(* TODO: Tensor *)
 (* TODO: Lambda *)
 
 (* check if the expr is bool type  *)
