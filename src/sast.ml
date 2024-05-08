@@ -105,6 +105,11 @@ let rec string_of_sstmt = function
       ^ "Else: " ^ string_of_sstmt sstmt2
   | _ -> failwith "not yet"
 
+let string_of_sstmts stmts =
+  "{\n"
+  ^ String.concat "" (List.map (fun s -> string_of_sstmt s ^ "\n") stmts)
+  ^ "}"
+
 (* Pretty print the program *)
 let string_of_sprogram { simports; sglobals } =
   let string_of_import (SImport (modul, id)) =

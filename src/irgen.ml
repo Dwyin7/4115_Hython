@@ -111,6 +111,7 @@ let print_call llval_expr builder =
 let add_terminal builder instr =
   match L.block_terminator (L.insertion_block builder) with
   | Some _ -> ()
+  (* ignore (instr builder) *)
   | None -> ignore (instr builder)
 
 let lookup n map =
@@ -228,6 +229,7 @@ let rec build_stmt func_map var_map builder stmt
       (* Printf.printf "else_builder_new is: %s\n" (str_of_terminator else_builder_new); *)
       add_terminal then_builder_new build_br_end;
       add_terminal else_builder_new build_br_end;
+
       (match control_instr_opt with
       | Some control_instr -> add_terminal end_builder control_instr
       | None -> ());
@@ -252,8 +254,11 @@ let rec build_stmt func_map var_map builder stmt
         build_stmt_list func_map var_map builder stmts control_instr_opt
       in
       (* add_terminal builder (L.build_ret (L.const_int (llvm_type A.P_int) 0)); *)
-      (new_func_map, new_var_map, old_builder)
-      (* (new_func_map, new_var_map, new_builder) *)
+      (match control_instr_opt with
+      | Some control_instr -> add_terminal new_builder control_instr
+      | None -> ());
+      (* (new_func_map, new_var_map, old_builder) *)
+      (new_func_map, new_var_map, new_builder)
   | SWhile (pred, body) ->
       let the_function = L.block_parent (L.insertion_block builder) in
       (* check condition  *)
@@ -277,9 +282,6 @@ let rec build_stmt func_map var_map builder stmt
 
       ignore (L.build_cond_br bool_val body_bb end_bb while_builder);
       let end_builder = L.builder_at_end context end_bb in
-      (match control_instr_opt with
-      | Some control_instr -> add_terminal end_builder control_instr
-      | None -> ());
       (func_map, var_map, end_builder)
   | _ -> failwith "error"
 
@@ -293,11 +295,6 @@ and build_function func_map var_map fdecl builder =
   let new_types = Array.append outer_var_types formal_types in
   (* new parameter for this function: include the outer_var + formals  *)
   let new_params = binds_of_var_map var_map @ fdecl.sparams in
-  (* Printf.printf "New params %s" (str_of_var_map var_map);
-     Printf.printf "New types";
-     Array.iter
-       (fun item -> Printf.printf "%s\n" (L.string_of_lltype item))
-       outer_var_types; *)
   let ftype = L.function_type (llvm_type fdecl.sret_type) new_types in
   (* Printf.printf "ftype:  %s\n" (string_of_lltype ftype); *)
   let the_function = L.define_function name ftype the_module in
