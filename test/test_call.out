@@ -1,0 +1,19 @@
+import 1 as 2
+func int test_call_1() {
+int i = (int) 1
+}
+func int test_call_2() {
+int call1 = (int) test_call_1()
+int res = (int) (int) call1 + (int) 2
+}
+func float test_call_3() {
+int call2 = (int) test_call_2()
+int res = (int) (int) call2 + (int) 3
+}
+func void test_call_4() {
+int i
+}
+(int) test_call_1()
+(int) test_call_2()
+(float) test_call_3()
+(void) test_call_4()

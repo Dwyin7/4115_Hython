@@ -136,8 +136,6 @@ let rec check_expr scope expr =
       in
       (ret_typ, SBinop ((t1, checked_e1), op, (t2, checked_e2)))
   | Call (id, exprs) ->
-      (* TODO: check function formals *)
-      (* TODO: Fix scope for Call and verify correct *)
       let func_signature = find_function scope id in
       let sexprs = List.map (check_expr scope) exprs in
       let typs, _ = List.split sexprs in
