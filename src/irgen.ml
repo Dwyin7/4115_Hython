@@ -5,7 +5,7 @@ module A = Ast
 module StringMap = Map.Make (String)
 
 (* define the records for both func map and var map  *)
-type var_map_val = { typ : A.typ; the_var : L.llvalue }
+type var_map_val = { typ : styp; the_var : L.llvalue }
 
 type func_map_val = {
   fdecl : sfunc_decl;
@@ -17,14 +17,23 @@ type func_map_val = {
 let context = L.global_context ()
 let the_module = L.create_module context "hython"
 
+(* let llvm_type = function
+   | A.P_int | A.T_int -> L.i32_type context
+   | A.P_float | A.T_float -> L.float_type context
+   | A.P_bool | A.T_bool -> L.i1_type context
+   | A.P_char | A.T_char -> L.i8_type context
+   | A.P_string | A.T_string -> L.pointer_type (L.i8_type context)
+   | A.Void -> L.void_type context
+   | _ -> failwith "Unsupported type" *)
 let llvm_type = function
-  | A.P_int | A.T_int -> L.i32_type context
-  | A.P_float | A.T_float -> L.float_type context
-  | A.P_bool | A.T_bool -> L.i1_type context
-  | A.P_char | A.T_char -> L.i8_type context
-  | A.P_string | A.T_string -> L.pointer_type (L.i8_type context)
-  | A.Void -> L.void_type context
+  | SP_int -> L.i32_type context
+  | SP_float -> L.float_type context
+  | SP_bool -> L.i1_type context
+  | SP_char -> L.i8_type context
+  | SP_string -> L.pointer_type (L.i8_type context)
+  | SVoid -> L.void_type context
   | _ -> failwith "Unsupported type"
+
 (* helper functions for debugging *)
 
 let str_of_var_map var_map =
@@ -151,12 +160,9 @@ let rec build_expr func_map var_map builder sexpr : L.llvalue =
       in
       let ids =
         List.fold_right
-          (fun key acc -> (A.Void, SId key) :: acc)
+          (fun key acc -> (SVoid, SId key) :: acc)
           snap_shot_var_key_lst []
       in
-      (* Printf.printf "New calls: [";
-         List.iter (fun (_, SId key) -> Printf.printf "(%s " key) ids;
-         Printf.printf "]\n"; *)
       let new_args = ids @ args in
       let llargs =
         List.map (fun arg -> build_expr func_map var_map builder arg) new_args
@@ -183,7 +189,7 @@ let rec build_stmt func_map var_map builder stmt
         build_function func_map var_map fdecl builder
       in
       (* function terminator *)
-      add_terminal new_builder (L.build_ret (L.const_int (llvm_type A.P_int) 1));
+      add_terminal new_builder (L.build_ret (L.const_int (llvm_type SP_int) 1));
       (new_func_map, new_var_map, old_builder)
   | SBind (typ, id) ->
       let var = L.build_alloca (llvm_type typ) id builder in
@@ -340,7 +346,7 @@ let translate program =
   let main_func =
     SFunc
       {
-        sret_type = A.P_int;
+        sret_type = SP_int;
         sfname = "main";
         sparams = [];
         sbody = program.sglobals;

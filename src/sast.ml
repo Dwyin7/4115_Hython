@@ -7,16 +7,16 @@ type styp =
   | SP_float
   | SP_char
   | SP_string
-  | ST_int of int list    (* Integer tensor with shape information *)
-  | ST_bool of int list   (* Boolean tensor with shape information *)
-  | ST_float of int list  (* Floating point tensor with shape information *)
-  | ST_char of int list   (* Character tensor with shape information *)
+  | ST_int of int list (* Integer tensor with shape information *)
+  | ST_bool of int list (* Boolean tensor with shape information *)
+  | ST_float of int list (* Floating point tensor with shape information *)
+  | ST_char of int list (* Character tensor with shape information *)
   | ST_string of int list (* String tensor with shape information *)
   | SVoid
   | SFunc
 
 type simport = SImport of id * id
-
+type sbind = styp * id
 (* expressions *)
 type sexpr = styp * sx
 
@@ -28,13 +28,13 @@ and sx =
   | SChar_literal of char
   | SString_literal of string
   (* tensor *)
-  | STensor of sexpr list * int list  (* Added shape information *)
+  | STensor of sexpr list * int list (* Added shape information *)
   | SId of id
   | SBinop of sexpr * bop * sexpr
   (* function call *)
   | SCall of id * sexpr list
     (*expr * expr list instead of Id * expr list because lambda function is an expression *)
-  | SLambda of bind list * sexpr
+  | SLambda of sbind list * sexpr
 
 (* Parameters * body, lambda must be single-lined, the value of the single expression is the return value, the return type is inferred by the compiler*)
 (*Lambda function is anomoyous but can be assigned to a func variable *)
@@ -44,8 +44,8 @@ type sstmt =
   | SBlock of sstmt list
   (* assigment *)
   | SAssign of id * sexpr
-  | SBind of bind
-  | SBindAndAssign of bind * sexpr
+  | SBind of sbind
+  | SBindAndAssign of sbind * sexpr
   (* function declare  *)
   | SFunc of sfunc_decl
   | SIf of sexpr * sstmt
@@ -58,7 +58,7 @@ type sstmt =
 and sfunc_decl = {
   sret_type : styp;
   sfname : id;
-  sparams : bind list;
+  sparams : sbind list;
   sbody : sstmt list;
 }
 
@@ -71,11 +71,16 @@ let string_of_styp = function
   | SP_float -> "float"
   | SP_char -> "char"
   | SP_string -> "string"
-  | ST_int dims -> "int tensor[" ^ (String.concat ", " (List.map string_of_int dims)) ^ "]"
-  | ST_bool dims -> "bool tensor[" ^ (String.concat ", " (List.map string_of_int dims)) ^ "]"
-  | ST_float dims -> "float tensor[" ^ (String.concat ", " (List.map string_of_int dims)) ^ "]"
-  | ST_char dims -> "char tensor[" ^ (String.concat ", " (List.map string_of_int dims)) ^ "]"
-  | ST_string dims -> "string tensor[" ^ (String.concat ", " (List.map string_of_int dims)) ^ "]"
+  | ST_int dims ->
+      "int tensor[" ^ String.concat ", " (List.map string_of_int dims) ^ "]"
+  | ST_bool dims ->
+      "bool tensor[" ^ String.concat ", " (List.map string_of_int dims) ^ "]"
+  | ST_float dims ->
+      "float tensor[" ^ String.concat ", " (List.map string_of_int dims) ^ "]"
+  | ST_char dims ->
+      "char tensor[" ^ String.concat ", " (List.map string_of_int dims) ^ "]"
+  | ST_string dims ->
+      "string tensor[" ^ String.concat ", " (List.map string_of_int dims) ^ "]"
   | SVoid -> "void"
   | SFunc -> "Function"
 
@@ -94,7 +99,10 @@ let rec string_of_sexpr (t, e) =
   | SChar_literal c -> "'" ^ Char.escaped c ^ "'"
   | SString_literal s -> "\"" ^ s ^ "\""
   | STensor (es, shape) ->
-    "tensor(" ^ String.concat ", " (List.map string_of_sexpr es) ^ ")" ^ " shape: " ^ String.concat ", " (List.map string_of_int shape) 
+      "tensor("
+      ^ String.concat ", " (List.map string_of_sexpr es)
+      ^ ")" ^ " shape: "
+      ^ String.concat ", " (List.map string_of_int shape)
   | SId s -> s
   | SBinop (e1, o, e2) ->
       string_of_sexpr e1 ^ " " ^ string_of_bop o ^ " " ^ string_of_sexpr e2
@@ -105,7 +113,7 @@ let rec string_of_sexpr (t, e) =
       ^ String.concat ", " (List.map string_of_bind params)
       ^ "). " ^ string_of_sexpr body
 
-and string_of_bind (t, id) = string_of_typ t ^ " " ^ id
+and string_of_bind (t, id) = string_of_styp t ^ " " ^ id
 
 (* Pretty print statements *)
 let rec string_of_sstmt = function

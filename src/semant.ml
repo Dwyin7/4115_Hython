@@ -269,7 +269,7 @@ let rec check_statement (scope : symbol_table) (statement : stmt) =
       else
         let styp = convert_typ_to_styp typ [] in  
       let new_scope = add_variable id styp scope in
-      (new_scope, SBind (typ, id))  
+      (new_scope, SBind (styp, id))  
   | Assign (id, e) ->
       let variable_typ = find_variable scope id in
       let e_typ, sx = check_expr scope e in
@@ -293,7 +293,7 @@ let rec check_statement (scope : symbol_table) (statement : stmt) =
         in
         let updated_variable_typ = check_assign styp e_typ err in
         let new_scope = add_variable id updated_variable_typ scope in
-        (new_scope, SBindAndAssign ((typ, id), (e_typ, sx)))
+        (new_scope, SBindAndAssign ((styp, id), (e_typ, sx)))
   | Func { ret_type = typ; fname = id; params = binds; body = stmts } ->
       if id == "print" then
         raise (Failure "Cannot declare function named print");
@@ -327,7 +327,7 @@ let rec check_statement (scope : symbol_table) (statement : stmt) =
             {
               sret_type = styp;
               sfname = id;
-              sparams = binds;
+              sparams = converted_formals;
               sbody = check_function_statements;
             } )
   | While (cond_expr, loop_stmt) ->
