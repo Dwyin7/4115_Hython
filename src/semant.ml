@@ -12,6 +12,7 @@ type symbol_table = {
   variables : styp StringMap.t;
   functions : func_signature StringMap.t;
   parent : symbol_table option;
+  cur_function_id : string;
 }
 
 let string_of_symbol_table scope =
@@ -24,7 +25,9 @@ let string_of_symbol_table scope =
     StringMap.fold
       (fun name signature acc ->
         let formals_str =
-          List.map (fun (t, id) -> string_of_styp t ^ " " ^ id) signature.formals
+          List.map
+            (fun (t, id) -> string_of_styp t ^ " " ^ id)
+            signature.formals
           |> String.concat ", "
         in
         acc ^ name ^ " : "
@@ -34,23 +37,31 @@ let string_of_symbol_table scope =
   in
   "Variables:\n" ^ variables_str ^ "\nFunctions:\n" ^ functions_str
 
-let create_scope parent =
-  (* let init_functions = StringMap.add "print" value StringMap.empty in *)
-  { variables = StringMap.empty; functions = StringMap.empty; parent }
+let create_scope parent cur_function_id =
+  (* init new scope *)
+  {
+    variables = StringMap.empty;
+    functions = StringMap.empty;
+    parent;
+    cur_function_id;
+  }
 
 let add_variable name typ scope =
   {
     variables = StringMap.add name typ scope.variables;
     functions = scope.functions;
     parent = scope.parent;
+    cur_function_id = scope.cur_function_id;
   }
 
+(* add one new function, and move current scope to the new function *)
 let add_function name rtyp formals scope =
   let func_signature = { ret_typ = rtyp; formals } in
   {
     variables = scope.variables;
     functions = StringMap.add name func_signature scope.functions;
     parent = scope.parent;
+    cur_function_id = scope.cur_function_id;
   }
 
 let rec find_variable (scope : symbol_table) name =
@@ -73,15 +84,15 @@ let rec find_variable_current_scope (scope : symbol_table) name =
     raise (Failure ("Variable not declared in the current scope: " ^ name))
 
 let check_assign lvaluet rvaluet err =
-  match lvaluet, rvaluet with
+  match (lvaluet, rvaluet) with
   | ST_int _, ST_int _
   | ST_float _, ST_float _
   | ST_char _, ST_char _
   | ST_string _, ST_string _
-  | ST_bool _, ST_bool _ -> rvaluet  (* Allow tensor assignments regardless of shape *)
-  | _ ->
-      if lvaluet = rvaluet then lvaluet
-      else raise (Failure err)
+  | ST_bool _, ST_bool _ ->
+      rvaluet (* Allow tensor assignments regardless of shape *)
+  | _ -> if lvaluet = rvaluet then lvaluet else raise (Failure err)
+
 let convert_typ_to_styp (typ : Ast.typ) (shape : int list) : Sast.styp =
   match typ with
   | Ast.P_int -> Sast.SP_int
@@ -89,7 +100,7 @@ let convert_typ_to_styp (typ : Ast.typ) (shape : int list) : Sast.styp =
   | Ast.P_float -> Sast.SP_float
   | Ast.P_char -> Sast.SP_char
   | Ast.P_string -> Sast.SP_string
-  | Ast.T_int -> Sast.ST_int shape  
+  | Ast.T_int -> Sast.ST_int shape
   | Ast.T_bool -> Sast.ST_bool shape
   | Ast.T_float -> Sast.ST_float shape
   | Ast.T_char -> Sast.ST_char shape
@@ -106,14 +117,13 @@ let rec check_expr scope expr =
   | Char_literal l -> (SP_char, SChar_literal l)
   | String_literal l -> (SP_string, SString_literal l)
   | Id var ->
-    let styp = find_variable scope var in
-    (styp, SId var)
-  | TensorAccess (var, index) ->
-    let t = find_variable scope var in
-    begin match t with
-    | ST_int _ -> (SP_int, STensorAccess(var, check_expr scope index))
-    | ST_float _ -> (SP_float, STensorAccess(var, check_expr scope index))
-  end
+      let styp = find_variable scope var in
+      (styp, SId var)
+  | TensorAccess (var, index) -> (
+      let t = find_variable scope var in
+      match t with
+      | ST_int _ -> (SP_int, STensorAccess (var, check_expr scope index))
+      | ST_float _ -> (SP_float, STensorAccess (var, check_expr scope index)))
   | Binop (e1, op, e2) ->
       let _ = string_of_expr e2 in
       let t1, checked_e1 = check_expr scope e1 in
@@ -121,26 +131,44 @@ let rec check_expr scope expr =
       let ret_typ =
         match op with
         | Add | Sub | Mul | Div -> (
-          let can_element_op (shape1 : int list) (shape2 : int list) : int list option =
-            match shape1, shape2 with
-            | [], _ | _, [] -> None  (* Check if either shape list is empty, which means invalid input *)
-            | _ ->
-              if shape1 = shape2 then  (* Correct check for matrix multiplication compatibility *)
-                Some shape1  (* Append the remaining dimensions *)
-              else
-                None  (* Returns None if dimensions don't match for multiplication *)
+            let can_element_op (shape1 : int list) (shape2 : int list) :
+                int list option =
+              match (shape1, shape2) with
+              | [], _ | _, [] ->
+                  None
+                  (* Check if either shape list is empty, which means invalid input *)
+              | _ ->
+                  if shape1 = shape2 then
+                    (* Correct check for matrix multiplication compatibility *)
+                    Some shape1 (* Append the remaining dimensions *)
+                  else None
+              (* Returns None if dimensions don't match for multiplication *)
             in
             match (t1, t2) with
             | SP_int, SP_int -> SP_int
             | SP_float, SP_float -> SP_float
-            | ST_float shape1, ST_float shape2 ->
-              (match can_element_op shape1 shape2 with
-              | Some result_shape -> ST_float result_shape
-              | None -> raise (Failure ("Cannot apply element wise operation on tensors with shapes " ^ (String.concat "," (List.map string_of_int shape1)) ^ " and " ^ (String.concat ", " (List.map string_of_int shape2)))))
-            | ST_int shape1, ST_int shape2 ->
-              (match can_element_op shape1 shape2 with
-              | Some result_shape -> ST_int result_shape
-              | None -> raise (Failure ("Cannot apply element wise operation on tensors with shapes " ^ (String.concat "," (List.map string_of_int shape1)) ^ " and " ^ (String.concat ", " (List.map string_of_int shape2)))))
+            | ST_float shape1, ST_float shape2 -> (
+                match can_element_op shape1 shape2 with
+                | Some result_shape -> ST_float result_shape
+                | None ->
+                    raise
+                      (Failure
+                         ("Cannot apply element wise operation on tensors with \
+                           shapes "
+                         ^ String.concat "," (List.map string_of_int shape1)
+                         ^ " and "
+                         ^ String.concat ", " (List.map string_of_int shape2))))
+            | ST_int shape1, ST_int shape2 -> (
+                match can_element_op shape1 shape2 with
+                | Some result_shape -> ST_int result_shape
+                | None ->
+                    raise
+                      (Failure
+                         ("Cannot apply element wise operation on tensors with \
+                           shapes "
+                         ^ String.concat "," (List.map string_of_int shape1)
+                         ^ " and "
+                         ^ String.concat ", " (List.map string_of_int shape2))))
             | _, _ ->
                 raise
                   (Failure
@@ -168,32 +196,60 @@ let rec check_expr scope expr =
                      ("Invalid operands for binary operator " ^ string_of_bop op))
             )
         | Matmul -> (
-          let can_multiply (shape1 : int list) (shape2 : int list) : int list option =
-            match shape1, shape2 with
-            | [], _ | _, [] -> None  (* Check if either shape list is empty, which means invalid input *)
-            | _ ->
-              let last_dim_shape1 = List.hd (List.rev shape1)  (* Gets the last dimension of shape1 *)
-              and first_dim_shape2 = List.hd shape2            (* Gets the first dimension of shape2 *)
-              in
-              if last_dim_shape1 = first_dim_shape2 then  (* Correct check for matrix multiplication compatibility *)
-                let shape1_no_last = List.rev (List.tl (List.rev shape1))  (* Remove the last dimension from shape1 *)
-                and shape2_no_first = List.tl shape2                       (* Remove the first dimension from shape2 *)
-                in
-                Some (shape1_no_last @ shape2_no_first)  (* Append the remaining dimensions *)
-              else
-                None  (* Returns None if dimensions don't match for multiplication *)
+            let can_multiply (shape1 : int list) (shape2 : int list) :
+                int list option =
+              match (shape1, shape2) with
+              | [], _ | _, [] ->
+                  None
+                  (* Check if either shape list is empty, which means invalid input *)
+              | _ ->
+                  let last_dim_shape1 =
+                    List.hd (List.rev shape1)
+                    (* Gets the last dimension of shape1 *)
+                  and first_dim_shape2 =
+                    List.hd shape2 (* Gets the first dimension of shape2 *)
+                  in
+                  if last_dim_shape1 = first_dim_shape2 then
+                    (* Correct check for matrix multiplication compatibility *)
+                    let shape1_no_last =
+                      List.rev (List.tl (List.rev shape1))
+                      (* Remove the last dimension from shape1 *)
+                    and shape2_no_first =
+                      List.tl
+                        shape2 (* Remove the first dimension from shape2 *)
+                    in
+                    Some (shape1_no_last @ shape2_no_first)
+                    (* Append the remaining dimensions *)
+                  else None
+              (* Returns None if dimensions don't match for multiplication *)
             in
             match (t1, t2) with
-            | ST_float shape1, ST_float shape2 ->
-              (match can_multiply shape1 shape2 with
-               | Some result_shape -> ST_float result_shape
-               | None -> raise (Failure ("Cannot multiply tensors with shapes " ^ (String.concat ", " (List.map string_of_int shape1)) ^ " and " ^ (String.concat ", " (List.map string_of_int shape2)))))
-            | ST_int shape1, ST_int shape2 ->
-                (match can_multiply shape1 shape2 with
-                 | Some result_shape -> ST_int result_shape
-                 | None -> raise (Failure ("Cannot multiply tensors with shapes " ^ (String.concat ", " (List.map string_of_int shape1)) ^ " and " ^ (String.concat ", " (List.map string_of_int shape2)))))
-            | _ -> raise (Failure ("Invalid operands for binary operator " ^ string_of_bop Matmul ^ ". Only floating-point tensors supported."))
-            )
+            | ST_float shape1, ST_float shape2 -> (
+                match can_multiply shape1 shape2 with
+                | Some result_shape -> ST_float result_shape
+                | None ->
+                    raise
+                      (Failure
+                         ("Cannot multiply tensors with shapes "
+                         ^ String.concat ", " (List.map string_of_int shape1)
+                         ^ " and "
+                         ^ String.concat ", " (List.map string_of_int shape2))))
+            | ST_int shape1, ST_int shape2 -> (
+                match can_multiply shape1 shape2 with
+                | Some result_shape -> ST_int result_shape
+                | None ->
+                    raise
+                      (Failure
+                         ("Cannot multiply tensors with shapes "
+                         ^ String.concat ", " (List.map string_of_int shape1)
+                         ^ " and "
+                         ^ String.concat ", " (List.map string_of_int shape2))))
+            | _ ->
+                raise
+                  (Failure
+                     ("Invalid operands for binary operator "
+                    ^ string_of_bop Matmul
+                    ^ ". Only floating-point tensors supported.")))
       in
       (ret_typ, SBinop ((t1, checked_e1), op, (t2, checked_e2)))
   | Call (id, exprs) ->
@@ -208,60 +264,80 @@ let rec check_expr scope expr =
         else
           raise
             (Failure
-               ("Type mismatch: expected " ^ string_of_styp expected ^ ", found "
-              ^ string_of_styp found))
+               ("Type mismatch: expected " ^ string_of_styp expected
+              ^ ", found " ^ string_of_styp found))
       in
       List.iter2 check_type_pairs formals_typ typs;
       (func_signature.ret_typ, SCall (id, sexprs))
-  | Tensor exprs -> 
+  | Tensor exprs ->
       let scalar_to_ast_tensor_type = function
-      | SP_int -> T_int
-      | SP_float -> T_float
-      | SP_char -> T_char
-      | SP_string -> T_string
-      | SP_bool -> T_bool 
-      | ST_int _ -> T_int    
-      | ST_float _ -> T_float
-      | ST_char _ -> T_char
-      | ST_string _ -> T_string
-      | ST_bool _ -> T_bool
-      | typ -> raise (Failure ("No tensor type equivalent for " ^ string_of_styp typ))
+        | SP_int -> T_int
+        | SP_float -> T_float
+        | SP_char -> T_char
+        | SP_string -> T_string
+        | SP_bool -> T_bool
+        | ST_int _ -> T_int
+        | ST_float _ -> T_float
+        | ST_char _ -> T_char
+        | ST_string _ -> T_string
+        | ST_bool _ -> T_bool
+        | typ ->
+            raise
+              (Failure ("No tensor type equivalent for " ^ string_of_styp typ))
       in
-      let infer_type sexprs= (* take the sexprs of every element as a list, only check type *)
+      let infer_type sexprs =
+        (* take the sexprs of every element as a list, only check type *)
         match sexprs with
         | [] -> raise (Failure "Empty tensor encountered")
-        | (styp, _) :: _ as typed_exprs -> (* extract the type of the first expression*)
-            let base_type = scalar_to_ast_tensor_type styp in  (* convert primary type to tensor type if the first expression is a scalar *)
-            if List.for_all (fun (t, _) -> scalar_to_ast_tensor_type t = base_type) typed_exprs then (* check whether the rest of the expressions has the same tensor type as the first element *)
+        | (styp, _) :: _ as typed_exprs ->
+            (* extract the type of the first expression*)
+            let base_type = scalar_to_ast_tensor_type styp in
+            (* convert primary type to tensor type if the first expression is a scalar *)
+            if
+              List.for_all
+                (fun (t, _) -> scalar_to_ast_tensor_type t = base_type)
+                typed_exprs
+            then
+              (* check whether the rest of the expressions has the same tensor type as the first element *)
               base_type
-            else
-              raise (Failure "Mixed types within tensor")
+            else raise (Failure "Mixed types within tensor")
       in
       let rec calculate_tensor_shape scope sexprs =
         match sexprs with
         | [] -> []
         | _ ->
-            let shapes = List.map (fun (_, sx) ->
-                match sx with
-                | STensor(_, shape) -> shape  (* Already calculated sub-shape *)
-                | SId id ->  (* Fetch shape from the variable in the scope *)
-                    (match find_variable scope id with
-                     | ST_int shape | ST_float shape | ST_char shape | ST_string shape | ST_bool shape -> shape
-                     | _ -> [])
-                | SInt_literal _ | SFloat_literal _ | SChar_literal _ | SString_literal _ | SBool_literal _ -> []  (* Treat scalars as 0D tensors *)
-                | _ -> raise (Failure "Unsupported tensor element type")
-            ) sexprs in
+            let shapes =
+              List.map
+                (fun (_, sx) ->
+                  match sx with
+                  | STensor (_, shape) ->
+                      shape (* Already calculated sub-shape *)
+                  | SId id -> (
+                      (* Fetch shape from the variable in the scope *)
+                      match find_variable scope id with
+                      | ST_int shape
+                      | ST_float shape
+                      | ST_char shape
+                      | ST_string shape
+                      | ST_bool shape ->
+                          shape
+                      | _ -> [])
+                  | SInt_literal _ | SFloat_literal _ | SChar_literal _
+                  | SString_literal _ | SBool_literal _ ->
+                      [] (* Treat scalars as 0D tensors *)
+                  | _ -> raise (Failure "Unsupported tensor element type"))
+                sexprs
+            in
             let common_shape = List.hd shapes in
             if List.for_all (fun shape -> shape = common_shape) shapes then
-                (List.length sexprs) :: common_shape
-            else
-                raise (Failure "Sub-tensor shapes are not uniform")
-        in
-      let typed_exprs = List.map (check_expr scope) exprs in 
+              List.length sexprs :: common_shape
+            else raise (Failure "Sub-tensor shapes are not uniform")
+      in
+      let typed_exprs = List.map (check_expr scope) exprs in
       let tensor_type = infer_type typed_exprs in
       let shape = calculate_tensor_shape scope typed_exprs in
       (*let shape = [0;0] in*)
-      (convert_typ_to_styp tensor_type shape, STensor(typed_exprs, shape))
+      (convert_typ_to_styp tensor_type shape, STensor (typed_exprs, shape))
 (* TODO: Lambda *)
 
 (* check if the expr is bool type  *)
@@ -273,7 +349,7 @@ let check_bool_expr scope e =
 
 let rec check_statement (scope : symbol_table) (statement : stmt) =
   match statement with
-  | Expr expr -> 
+  | Expr expr ->
       let sexpr = check_expr scope expr in
       (scope, SExpr sexpr)
   | Block stmts ->
@@ -282,7 +358,7 @@ let rec check_statement (scope : symbol_table) (statement : stmt) =
           (fun (current_scope, checked_stmts) stmt ->
             let new_scope, checked_stmt = check_statement current_scope stmt in
             (new_scope, checked_stmts @ [ checked_stmt ]))
-          (create_scope (Some scope), [])
+          (create_scope (Some scope) scope.cur_function_id, [])
           stmts
       in
       (scope, SBlock checked_stmts)
@@ -290,15 +366,16 @@ let rec check_statement (scope : symbol_table) (statement : stmt) =
       if StringMap.mem id scope.variables then
         raise (Failure ("Already decalered: " ^ id ^ " , in this scope"))
       else
-        let styp = convert_typ_to_styp typ [] in  
-      let new_scope = add_variable id styp scope in
-      (new_scope, SBind (styp, id))  
+        let styp = convert_typ_to_styp typ [] in
+        let new_scope = add_variable id styp scope in
+        (new_scope, SBind (styp, id))
   | Assign (id, e) ->
       let variable_typ = find_variable scope id in
       let e_typ, sx = check_expr scope e in
       let err =
-        "left type:" ^ string_of_styp variable_typ ^ " Right type: "
-        ^ string_of_styp e_typ ^ " Variable name:" ^ id
+        "left type:"
+        ^ string_of_styp variable_typ
+        ^ " Right type: " ^ string_of_styp e_typ ^ " Variable name:" ^ id
       in
       let updated_variable_typ = check_assign variable_typ e_typ err in
       let new_scope = add_variable id updated_variable_typ scope in
@@ -323,28 +400,32 @@ let rec check_statement (scope : symbol_table) (statement : stmt) =
       if StringMap.mem id scope.functions then
         raise (Failure ("Already decalered: " ^ id ^ " , in this scope"))
       else
-        let styp = convert_typ_to_styp typ [] in  (* Convert Ast.typ to Sast.styp *)
-        let converted_formals = List.map (fun (t, i) -> (convert_typ_to_styp t [], i)) binds in 
+        let styp = convert_typ_to_styp typ [] in
+        (* Convert Ast.typ to Sast.styp *)
+        let converted_formals =
+          List.map (fun (t, i) -> (convert_typ_to_styp t [], i)) binds
+        in
         let func_signature = { ret_typ = styp; formals = converted_formals } in
-        let new_function_scope = create_scope (Some scope) in
+        let new_function_scope = create_scope (Some scope) id in
         let scope_with_formals =
           List.fold_left
             (fun acc_scope (typ, id) -> add_variable id typ acc_scope)
             new_function_scope converted_formals
         in
+        let new_scope =
+          add_function id styp converted_formals scope_with_formals
+        in
         let check_function_statements =
           let _, checked_stmts =
             List.fold_left
               (fun (current_scope, checked_stmts) stmt ->
-                let new_scope, checked_stmt =
-                  check_statement current_scope stmt
-                in
-                (new_scope, checked_stmts @ [ checked_stmt ]))
-              (scope_with_formals, []) stmts
+                let ns, checked_stmt = check_statement current_scope stmt in
+                (ns, checked_stmts @ [ checked_stmt ]))
+              (new_scope, []) stmts
           in
           checked_stmts
         in
-        let new_scope = add_function id styp converted_formals scope in
+
         ( new_scope,
           SFunc
             {
@@ -358,7 +439,7 @@ let rec check_statement (scope : symbol_table) (statement : stmt) =
       if cond_type != SP_bool then
         raise (Failure "While statement contains non-boolean value");
 
-      let new_scope = create_scope (Some scope) in
+      let new_scope = create_scope (Some scope) scope.cur_function_id in
       let _, checked_loop_stmt = check_statement new_scope loop_stmt in
       (scope, SWhile ((cond_type, checked_cond), checked_loop_stmt))
   | For (iterator, start_expr, loop_stmt) ->
@@ -367,36 +448,41 @@ let rec check_statement (scope : symbol_table) (statement : stmt) =
       if iterator_type != SP_int || start_type != SP_int then
         raise (Failure "For loop has to be integer ranges");
 
-      let loop_scope = create_scope (Some scope) in
+      let loop_scope = create_scope (Some scope) scope.cur_function_id in
       let loop_scope_with_iterator = add_variable iterator SP_int loop_scope in
       let _, checked_loop_stmt =
         check_statement loop_scope_with_iterator loop_stmt
       in
       (scope, SFor (iterator, (SP_int, checked_start_expr), checked_loop_stmt))
-
   | If (e, s1) ->
-    let _, checked_s1 = check_statement scope s1 in
-    (scope, SIf (check_bool_expr scope e, checked_s1))
-
+      let _, checked_s1 = check_statement scope s1 in
+      (scope, SIf (check_bool_expr scope e, checked_s1))
   | IfElse (e, s1, s2) ->
       let _, checked_s1 = check_statement scope s1 in
       let _, checked_s2 = check_statement scope s2 in
       (scope, SIfElse (check_bool_expr scope e, checked_s1, checked_s2))
   | Return expr ->
-    let ret_type, _ = check_expr scope expr in
-    let function_ret_type =
-      match scope.parent with
-      | Some parent_scope ->
-          (match parent_scope.functions |> StringMap.find_opt "test_call_1" with
-          | Some main_signature -> main_signature.ret_typ
-          | None -> SVoid)
-      | None -> SVoid
-    in
-    if ret_type = function_ret_type then
-      (scope, SReturn (check_expr scope expr) )
-    else
-      raise (Failure (match function_ret_type with SP_int -> "int" | SVoid -> "SVoid" | _ -> "Else")  )
-
+      let ret_type, sexpr = check_expr scope expr in
+      let cur_function = find_function scope scope.cur_function_id in
+      if ret_type == cur_function.ret_typ then (scope, SReturn (ret_type, sexpr))
+      else failwith "check return fail"
+      (* | Some parent_scope -> (
+               match
+                 parent_scope.functions |> StringMap.find_opt "test_call_1"
+               with
+               | Some main_signature -> main_signature.ret_typ
+               | None -> SVoid)
+           | None -> SVoid
+         in
+         if ret_type = function_ret_type then
+           (scope, SReturn (check_expr scope expr))
+         else
+           raise
+             (Failure
+                (match function_ret_type with
+                | SP_int -> "int"
+                | SVoid -> "SVoid"
+                | _ -> "Else")) *)
   | x -> failwith ("Statement type not handled yet: " ^ string_of_stmt x)
 
 (* semantic checking of ast, return Sast if success *)
@@ -413,7 +499,7 @@ let rec check_statements scope statments sstatments =
 let check program =
   let imports = program.imports in
   let globals = program.globals in
-  let init_scope = create_scope None in
+  let init_scope = create_scope None "main" in
   let print_func =
     StringMap.add "print"
       { ret_typ = SP_int; formals = [ (SP_int, "x") ] }
@@ -424,6 +510,7 @@ let check program =
       variables = init_scope.variables;
       functions = print_func;
       parent = init_scope.parent;
+      cur_function_id = init_scope.cur_function_id;
     }
   in
   let sstmts = check_statements global_scope globals [] in
