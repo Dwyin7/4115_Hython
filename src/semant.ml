@@ -350,15 +350,16 @@ let rec check_statement (scope : symbol_table) (statement : stmt) =
         check_statement loop_scope_with_iterator loop_stmt
       in
       (scope, SFor (iterator, (SP_int, checked_start_expr), checked_loop_stmt))
-  (* TODO: If else *)
+
+  | If (e, s1) ->
+    let _, checked_s1 = check_statement scope s1 in
+    (scope, SIf (check_bool_expr scope e, checked_s1))
+
   | IfElse (e, s1, s2) ->
-      ( scope,
-        SIfElse
-          ( check_bool_expr scope e,
-            snd (check_statement scope s1),
-            snd (check_statement scope s2) ) )
-  (* TODO: Return *)
-  (* TODO: If *)
+      let _, checked_s1 = check_statement scope s1 in
+      let _, checked_s2 = check_statement scope s2 in
+      (scope, SIfElse (check_bool_expr scope e, checked_s1, checked_s2))
+  
   | x -> failwith ("Statement type not handled yet: " ^ string_of_stmt x)
 
 (* semantic checking of ast, return Sast if success *)
