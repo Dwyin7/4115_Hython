@@ -34,6 +34,13 @@ let llvm_type = function
   | SVoid -> L.void_type context
   | _ -> failwith "Unsupported type"
 
+let rec llvm_type_of_tensor context base_typ dims = 
+  match dims with
+  | [] -> base_typ
+  | dim :: rest_dims ->
+    let sub_type = llvm_type_of_tensor context base_typ rest_dims in
+    L.array_type sub_type dim 
+
 (* helper functions for debugging *)
 
 let str_of_var_map var_map =
@@ -117,6 +124,47 @@ let print_call llval_expr builder =
   in
   L.build_call printf_func [| int_format_str; llval_expr |] "printf" builder
 
+  (* let print_array_call array_llvalue array_length builder =
+    let the_function = L.block_parent (L.insertion_block builder) in
+    let int_format_str = L.build_global_stringptr "%d\n" "fmt" builder in
+    let printf_t : L.lltype =
+      L.var_arg_function_type (L.i32_type context)
+        [| L.pointer_type (L.i8_type context); L.i32_type context |]
+    in
+    let printf_func : L.llvalue =
+      L.declare_function "printf" printf_t the_module
+    in
+  
+    (* Create loop to iterate through the array *)
+    let start_val = L.const_int (L.i32_type context) 0 in
+    let end_val = L.const_int (L.i32_type context) array_length in
+    let loop_cond_bb = L.append_block context "loopcond" the_function in
+    let loop_body_bb = L.append_block context "loopbody" the_function in
+    let after_loop_bb = L.append_block context "afterloop" the_function in
+  
+    (* Initial jump to the loop condition *)
+    ignore (L.build_br loop_cond_bb builder);
+  
+    (* Condition check *)
+    let cond_builder = L.builder_at_end context loop_cond_bb in
+    let index_var = L.build_phi [(start_val, L.insertion_block builder)] "index" cond_builder in
+    let compare = L.build_icmp L.Icmp.Slt index_var end_val "loopcond" cond_builder in
+    ignore (L.build_cond_br compare loop_body_bb after_loop_bb cond_builder);
+  
+    (* Loop body *)
+    let body_builder = L.builder_at_end context loop_body_bb in
+    let element_ptr = L.build_gep array_llvalue [| index_var |] "element_ptr" body_builder in
+    let element = L.build_load element_ptr "element" body_builder in
+    ignore (L.build_call printf_func [| int_format_str; element |] "printf" body_builder);
+    let next_index = L.build_add index_var (L.const_int (L.i32_type context) 1) "nextindex" body_builder in
+    add_incoming (next_index, L.insertion_block body_builder) index_var;
+    ignore (L.build_br loop_cond_bb body_builder);
+  
+    (* After the loop *)
+    L.position_at_end after_loop_bb builder;
+    L.build_ret (L.const_int (L.i32_type context) 0) builder 
+   *)
+
 let add_terminal builder instr =
   match L.block_terminator (L.insertion_block builder) with
   | Some _ -> ()
@@ -128,6 +176,58 @@ let lookup n map =
 
 let rec build_expr func_map var_map builder sexpr : L.llvalue =
   prepare_builder builder;
+  let rec build_tensor context builder value_typ dims init_values = 
+    match dims with
+    | [n] ->
+      let base_type = L.array_type value_typ n in
+      L.const_array value_typ (Array.of_list init_values) in
+    (* | n :: ns -> 
+      let sub_arrays = List.map (build_tensor context builder value_typ ns) init_values in
+      let array_type = L.array_type (L.type_of (list.hd sub_arrays)) n in
+      L.const_array (L.type_of (List.hd sub_arrays)) (Array.of_list sub_arrays) in *)
+
+  let rec create_init_values context builder = function
+    | [] -> []
+    | (typ, SInt_literal i) :: rest -> L.const_int (L.i32_type context) i :: create_init_values context builder rest
+    | (typ, SFloat_literal f) :: rest -> L.const_float (L.float_type context) f :: create_init_values context builder rest in
+  let infer_type sexprs= (* take the sexprs of every element as a list, only check type *)
+      match sexprs with
+      | (styp, _) :: _ as typed_exprs -> (* extract the type of the first expression*)
+        llvm_type styp
+    in
+  let get_type_of_expr var_map expr = 
+    match expr with
+    | (_, SId s) -> 
+      (match StringMap.find_opt s var_map with
+       | Some { typ; _ } -> typ)
+    | (_, SInt_literal _) -> SP_int
+    | (_, STensor (_, shape)) -> 
+      let shape_str = String.concat ", " (List.map string_of_int shape) in
+      Printf.printf "Shape: [%s]\n" shape_str;
+      ST_int shape
+    | _ -> failwith "Expression type not supported for operation" in
+  let build_tensor_addition context builder tensor1 tensor2 result_tensor etyp dims = 
+    (* let shape_str = String.concat ", " (List.map string_of_int dims) in
+    Printf.printf "Shape: [%s]\n" shape_str; *)
+    let size = List.fold_left ( * ) 1 dims in
+    for i = 0 to size - 1 do
+      let index = [L.const_int (L.i32_type context) 0; L.const_int (L.i32_type context) i] in
+      let elem1_ptr = L.build_gep tensor1 (Array.of_list index) "elem1_ptr" builder in
+      let elem2_ptr = L.build_gep tensor2 (Array.of_list index) "elem2_ptr" builder in
+
+      let elem1 = L.build_load elem1_ptr "elem1" builder in
+      let elem2 = L.build_load elem2_ptr "elem2" builder in 
+
+      let sum = match etyp with 
+        | SP_int -> L.build_add elem1 elem2 "sum" builder
+        | _ -> failwith "Unsupported element type for tensor addition"
+      in
+
+      let result_ptr = L.build_gep result_tensor (Array.of_list index) "result_ptr" builder in
+      ignore (L.build_store sum result_ptr builder);
+    done
+  in
+
   let _, e = sexpr in
   match e with
   | SInt_literal i -> L.const_int (L.i32_type context) i
@@ -135,23 +235,44 @@ let rec build_expr func_map var_map builder sexpr : L.llvalue =
   | SBool_literal b -> L.const_int (L.i1_type context) (if b then 1 else 0)
   | SChar_literal c -> L.const_int (L.i8_type context) (Char.code c)
   | SString_literal s -> L.build_global_stringptr s "tmp" builder
-  | SId s -> L.build_load (lookup s var_map).the_var s builder
+  | SId s -> 
+    let var_info = lookup s var_map in
+    begin match var_info.typ with
+    | ST_int _ -> var_info.the_var
+    | _ -> L.build_load (lookup s var_map).the_var s builder
+    end
+  | STensor (e, shape) ->
+    let init_values = create_init_values context builder e in
+    let tensor_typ = infer_type e in
+    build_tensor context builder tensor_typ shape init_values
+  | STensorAccess (var, ind) ->
+    let var_info = lookup var var_map in
+    let index = build_expr func_map var_map builder ind in
+    let element_ptr = L.build_gep var_info.the_var [|L.const_int (L.i32_type context) 0; index |] "elem_ptr" builder in
+    L.build_load element_ptr "elem" builder 
   | SBinop (e1, op, e2) ->
       let e1' = build_expr func_map var_map builder e1
       and e2' = build_expr func_map var_map builder e2 in
-      (match op with
-      | A.Add -> L.build_add
-      | A.Sub -> L.build_sub
-      | A.Mul -> L.build_mul
-      | A.Div -> L.build_sdiv
-      | A.Or -> L.build_or
-      | A.Equal -> L.build_icmp L.Icmp.Eq
-      | A.Neq -> L.build_icmp L.Icmp.Ne
-      | A.Less -> L.build_icmp L.Icmp.Slt
-      | _ -> failwith (string_of_sexpr sexpr))
-        e1' e2' "tmp" builder
-  | SCall ("print", [ e ]) ->
-      print_call (build_expr func_map var_map builder e) builder
+      let type_e = get_type_of_expr var_map e1 in
+      begin match (type_e, op) with
+      | (SP_int, A.Add) -> L.build_add e1' e2' "tmp" builder
+      | (ST_int shape, A.Add) -> 
+        let elem_type = SP_int in
+        let result_tensor = L.build_alloca (llvm_type_of_tensor context (llvm_type SP_int) shape) "result_tensor" builder in
+        build_tensor_addition context builder e1' e2' result_tensor elem_type shape;
+        result_tensor
+      | (_, A.Sub) -> L.build_sub e1' e2' "tmp" builder
+      | (_, A.Mul) -> L.build_mul e1' e2' "tmp" builder
+      | (_, A.Div) -> L.build_sdiv e1' e2' "tmp" builder
+      | (_, A.Or) -> L.build_or e1' e2' "tmp" builder
+      | (_, A.Equal) -> L.build_icmp L.Icmp.Eq e1' e2' "tmp" builder
+      | (_, A.Neq) -> L.build_icmp L.Icmp.Ne e1' e2' "tmp" builder
+      | (_, A.Less) -> L.build_icmp L.Icmp.Slt e1' e2' "tmp" builder
+      | _ -> failwith (string_of_sexpr sexpr)
+      end
+  | SCall ("print", [ e ]) -> 
+      let e' = build_expr func_map var_map builder e in
+      print_call e' builder
   | SCall (id, args) ->
       let func_map_val = StringMap.find id func_map in
       (* find the snap_shot *)
@@ -176,6 +297,7 @@ let rec build_expr func_map var_map builder sexpr : L.llvalue =
 let rec build_stmt func_map var_map builder stmt
     (control_instr_opt : (L.llbuilder -> L.llvalue) option) =
   (* find the parent function *)
+
   (* need to store the prev state *)
   let old_builder = builder in
   (* Printf.printf "cur expr %s \n" (string_of_sstmt stmt); *)
@@ -183,6 +305,9 @@ let rec build_stmt func_map var_map builder stmt
   | SExpr e ->
       (* Printf.printf "terminator %s \n" (str_of_terminator builder); *)
       ignore (build_expr func_map var_map builder e);
+      (func_map, var_map, builder)
+  | SReturn e ->
+      ignore(L.build_ret (build_expr func_map var_map builder e) builder); 
       (func_map, var_map, builder)
   | SFunc fdecl ->
       let new_func_map, new_var_map, new_builder =
@@ -200,6 +325,27 @@ let rec build_stmt func_map var_map builder stmt
       let e' = build_expr func_map var_map builder e in
       ignore (L.build_store e' (lookup id var_map).the_var builder);
       (func_map, var_map, builder)
+  | SBindAndAssign ((typ, id), (etyp, sx)) ->
+    let var =
+      match etyp with
+      | ST_int shape ->
+        let llvm_base_typ = llvm_type SP_int in
+        let tensor_typ = llvm_type_of_tensor context llvm_base_typ shape in
+        L.build_alloca tensor_typ id builder 
+      | _ -> L.build_alloca (llvm_type typ) id builder in
+    let var_val = 
+      match etyp with
+      | ST_int shape -> { typ = etyp; the_var = var } 
+      | _ -> { typ; the_var = var } in
+    let new_var_map = StringMap.add id var_val var_map in
+    let e' = 
+      let expr = build_expr func_map var_map builder (etyp, sx) in
+      let expr_typ = L.type_of expr in
+      match L.classify_type expr_typ with
+      | L.TypeKind.Pointer -> L.build_load expr "elem" builder
+      | _ -> expr in
+    ignore (L.build_store e' var builder);
+    (func_map, new_var_map, builder)
   | SIfElse (pred, then_stmt, else_stmt) ->
       let the_function = L.block_parent (L.insertion_block builder) in
       let bool_val = build_expr func_map var_map builder pred in

@@ -78,7 +78,7 @@ rule token = parse
 
 (* Branch Control *)
 | "if" { IF }
-| "elif" { ELIF }
+(* | "elif" { ELIF } *)
 | "else" { ELSE }
 | "for" { FOR }
 | "while" { WHILE }
@@ -90,7 +90,7 @@ rule token = parse
 (* function *)
 | "def" { FUNC }
 | "return" { RETURN }
-| "yield" { YIELD }
+(* | "yield" { YIELD } *)
 
 (* Errors and Exception *)
 | "try" { TRY }

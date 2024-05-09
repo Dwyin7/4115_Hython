@@ -33,6 +33,7 @@ and sx =
   | SBinop of sexpr * bop * sexpr
   (* function call *)
   | SCall of id * sexpr list
+  | STensorAccess of id * sexpr
     (*expr * expr list instead of Id * expr list because lambda function is an expression *)
   | SLambda of sbind list * sexpr
 
@@ -108,6 +109,8 @@ let rec string_of_sexpr (t, e) =
       string_of_sexpr e1 ^ " " ^ string_of_bop o ^ " " ^ string_of_sexpr e2
   | SCall (id, args) ->
       id ^ "(" ^ String.concat ", " (List.map string_of_sexpr args) ^ ")"
+  | STensorAccess (id, index) ->
+     id ^ "[" ^ string_of_sexpr index ^ "]"
   | SLambda (params, body) ->
       "lambda("
       ^ String.concat ", " (List.map string_of_bind params)

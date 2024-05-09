@@ -3,7 +3,7 @@ open Ast
 %}
 
 // token declaration
-%token INDENT DEDENT
+// %token INDENT DEDENT
 %token LPAREN RPAREN LBRACE RBRACE SEMI COLON COMMA EOF
 %token PLUS MINUS TIMES MATMUL DIVIDE MODULO ASSIGN EQ NEQ LT LEQ GT GEQ
 %token AND OR NOT DOT LBRACK RBRACK
@@ -96,6 +96,7 @@ expr_rule:
   | ID { Id($1) }
   | LBRACK tensor_rule_list RBRACK { Tensor($2) }
   | ID LPAREN args_opt RPAREN { Call($1, $3) }
+  | ID LBRACK expr_rule RBRACK { TensorAccess($1, $3) }
   /*| expr_rule LPAREN args_opt RPAREN { Call( $1, $3) }*/
   | LAMBDA LPAREN formal_list_rule RPAREN COLON expr_rule { Lambda($3, $6) }
 
@@ -125,6 +126,7 @@ stmt_rule:
   | RETURN expr_rule SEMI { Return($2) }
   | WHILE LPAREN expr_rule RPAREN stmt_rule      { While($3, $5) }
   | FOR LPAREN ID IN expr_rule RPAREN stmt_rule    { For($3, $5, $7) }
+  | IF LPAREN expr_rule RPAREN stmt_rule        { If($3, $5) }
   | IF LPAREN expr_rule RPAREN stmt_rule ELSE stmt_rule       { IfElse($3, $5, $7) } //if else parsing
 
 

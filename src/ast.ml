@@ -50,6 +50,7 @@ type expr =
   | Tensor of expr list
   (*expr * expr list instead of Id * expr list because lambda function is an expression *)
   | Lambda of bind list * expr
+  | TensorAccess of id * expr
 
 (* Parameters * body, lambda must be single-lined, the value of the single expression is the return value, the return type is inferred by the compiler*)
 (*Lambda function is anomoyous but can be assigned to a func variable *)
@@ -129,6 +130,8 @@ let rec string_of_expr = function
   | Call (id, es) ->
       Printf.sprintf "%s(%s)" id
         (String.concat ", " (List.map string_of_expr es))
+  | TensorAccess (e1, e2) -> 
+    Printf.sprintf "%s[%s]" e1 (string_of_expr e2)
   | Lambda (bs, e) ->
       Printf.sprintf "lambda %s -> %s"
         (String.concat ", "
@@ -152,6 +155,8 @@ let rec string_of_stmt = function
       Printf.sprintf "%s %s(%s) {\n%s\n}" (string_of_typ t) id formals body
   | If (e, s) ->
       Printf.sprintf "if (%s) %s" (string_of_expr e) (string_of_stmt s)
+  | IfElse (e, s1, s2) ->
+      Printf.sprintf "if (%s)\n %s\nelse\n%s" (string_of_expr e) (string_of_stmt s1) (string_of_stmt s2)
   | Expr e -> string_of_expr e ^ ";"
   | While (e, s) ->
       Printf.sprintf "while (%s) %s" (string_of_expr e) (string_of_stmt s)
