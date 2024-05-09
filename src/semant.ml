@@ -108,6 +108,12 @@ let rec check_expr scope expr =
   | Id var ->
     let styp = find_variable scope var in
     (styp, SId var)
+  | TensorAccess (var, index) ->
+    let t = find_variable scope var in
+    begin match t with
+    | ST_int _ -> (SP_int, STensorAccess(var, check_expr scope index))
+    | ST_float _ -> (SP_float, STensorAccess(var, check_expr scope index))
+  end
   | Binop (e1, op, e2) ->
       let _ = string_of_expr e2 in
       let t1, checked_e1 = check_expr scope e1 in
@@ -115,9 +121,26 @@ let rec check_expr scope expr =
       let ret_typ =
         match op with
         | Add | Sub | Mul | Div -> (
+          let can_element_op (shape1 : int list) (shape2 : int list) : int list option =
+            match shape1, shape2 with
+            | [], _ | _, [] -> None  (* Check if either shape list is empty, which means invalid input *)
+            | _ ->
+              if shape1 = shape2 then  (* Correct check for matrix multiplication compatibility *)
+                Some shape1  (* Append the remaining dimensions *)
+              else
+                None  (* Returns None if dimensions don't match for multiplication *)
+            in
             match (t1, t2) with
             | SP_int, SP_int -> SP_int
             | SP_float, SP_float -> SP_float
+            | ST_float shape1, ST_float shape2 ->
+              (match can_element_op shape1 shape2 with
+              | Some result_shape -> ST_float result_shape
+              | None -> raise (Failure ("Cannot apply element wise operation on tensors with shapes " ^ (String.concat "," (List.map string_of_int shape1)) ^ " and " ^ (String.concat ", " (List.map string_of_int shape2)))))
+            | ST_int shape1, ST_int shape2 ->
+              (match can_element_op shape1 shape2 with
+              | Some result_shape -> ST_int result_shape
+              | None -> raise (Failure ("Cannot apply element wise operation on tensors with shapes " ^ (String.concat "," (List.map string_of_int shape1)) ^ " and " ^ (String.concat ", " (List.map string_of_int shape2)))))
             | _, _ ->
                 raise
                   (Failure
