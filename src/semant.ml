@@ -261,6 +261,7 @@ let rec check_expr scope expr =
       (* TODO: change check for tensors tensors of all shape should be accepted*)
       let check_type_pairs expected found =
         if expected = found then ()
+        else if id = "print" then ()
         else
           raise
             (Failure

@@ -294,6 +294,11 @@ let rec build_expr func_map var_map builder sexpr : L.llvalue =
       | _, A.Equal -> L.build_icmp L.Icmp.Eq e1' e2' "tmp" builder
       | _, A.Neq -> L.build_icmp L.Icmp.Ne e1' e2' "tmp" builder
       | _, A.Less -> L.build_icmp L.Icmp.Slt e1' e2' "tmp" builder
+      | _, A.Leq -> L.build_icmp L.Icmp.Sle e1' e2' "tmp" builder
+      | _, A.Greater -> L.build_icmp L.Icmp.Sgt e1' e2' "tmp" builder
+      | _, A.Geq -> L.build_icmp L.Icmp.Sge e1' e2' "tmp" builder
+      | _, A.And -> L.build_and e1' e2' "tmp" builder
+
       | _ -> failwith (string_of_sexpr sexpr))
   | SCall ("print", [ e ]) ->
       let e' = build_expr func_map var_map builder e in
