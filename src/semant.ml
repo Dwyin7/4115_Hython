@@ -359,7 +359,21 @@ let rec check_statement (scope : symbol_table) (statement : stmt) =
       let _, checked_s1 = check_statement scope s1 in
       let _, checked_s2 = check_statement scope s2 in
       (scope, SIfElse (check_bool_expr scope e, checked_s1, checked_s2))
-  
+  | Return expr ->
+    let ret_type, _ = check_expr scope expr in
+    let function_ret_type =
+      match scope.parent with
+      | Some parent_scope ->
+          (match parent_scope.functions |> StringMap.find_opt "test_call_1" with
+          | Some main_signature -> main_signature.ret_typ
+          | None -> SVoid)
+      | None -> SVoid
+    in
+    if ret_type = function_ret_type then
+      (scope, SReturn (check_expr scope expr) )
+    else
+      raise (Failure (match function_ret_type with SP_int -> "int" | SVoid -> "SVoid" | _ -> "Else")  )
+
   | x -> failwith ("Statement type not handled yet: " ^ string_of_stmt x)
 
 (* semantic checking of ast, return Sast if success *)
@@ -391,12 +405,3 @@ let check program =
   in
   let sstmts = check_statements global_scope globals [] in
   { simports = [ SImport ("1", "2") ]; sglobals = sstmts }
-
-(* Previous If implementation *)
-(* let check_if_statement cond_expr then_stmt else_stmt scope =
-   let cond_type, checked_cond = check_expr scope cond_expr in
-   if cond_type != P_bool then
-     raise (Failure "If statement contains non-boolean value");
-   let _, checked_then = check_statement scope then_stmt in
-   let _, checked_else = check_statement scope else_stmt in
-   P_void, SIf (checked_cond, checked_then, checked_else) *)
