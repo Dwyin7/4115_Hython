@@ -236,8 +236,9 @@ let rec build_expr func_map var_map builder sexpr : L.llvalue =
       let var_info = lookup s var_map in
       (* Printf.printf "var map: %s \n" (str_of_var_map_val var_info); *)
       match var_info.typ with
-      (* | SP_int _ -> var_info.the_var *)
-      | _ -> L.build_load (lookup s var_map).the_var s builder)
+      | ST_int _ -> var_info.the_var
+      | ST_float _ -> var_info.the_var
+      | _ -> L.build_load var_info.the_var s builder)
   | STensor (e, shape) ->
       let init_values = create_init_values context builder e in
       let tensor_typ = infer_type e in
@@ -351,11 +352,16 @@ let rec build_stmt func_map var_map builder stmt
             let llvm_base_typ = llvm_type SP_int in
             let tensor_typ = llvm_type_of_tensor context llvm_base_typ shape in
             L.build_alloca tensor_typ id builder
+        | ST_float shape ->
+            let llvm_base_typ = llvm_type SP_float in
+            let tensor_typ = llvm_type_of_tensor context llvm_base_typ shape in
+            L.build_alloca tensor_typ id builder
         | _ -> L.build_alloca (llvm_type typ) id builder
       in
       let var_val =
         match etyp with
         | ST_int shape -> { typ = etyp; the_var = var }
+        | ST_float shape -> { typ = etyp; the_var = var }
         | _ -> { typ; the_var = var }
       in
       let new_var_map = StringMap.add id var_val var_map in
@@ -364,6 +370,7 @@ let rec build_stmt func_map var_map builder stmt
         let expr_typ = L.type_of expr in
         match (L.classify_type expr_typ, etyp) with
         | L.TypeKind.Pointer, ST_int _ -> L.build_load expr "elem" builder
+        | L.TypeKind.Pointer, ST_float _ -> L.build_load expr "elem" builder
         | _ -> expr
       in
       ignore (L.build_store e' var builder);
