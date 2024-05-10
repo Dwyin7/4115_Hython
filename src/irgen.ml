@@ -138,47 +138,6 @@ let print_call e' builder =
   in
   L.build_call printf_func [| format_str_val; value_to_print |] "printf" builder
 
-(* let print_array_call array_llvalue array_length builder =
-   let the_function = L.block_parent (L.insertion_block builder) in
-   let int_format_str = L.build_global_stringptr "%d\n" "fmt" builder in
-   let printf_t : L.lltype =
-     L.var_arg_function_type (L.i32_type context)
-       [| L.pointer_type (L.i8_type context); L.i32_type context |]
-   in
-   let printf_func : L.llvalue =
-     L.declare_function "printf" printf_t the_module
-   in
-
-   (* Create loop to iterate through the array *)
-   let start_val = L.const_int (L.i32_type context) 0 in
-   let end_val = L.const_int (L.i32_type context) array_length in
-   let loop_cond_bb = L.append_block context "loopcond" the_function in
-   let loop_body_bb = L.append_block context "loopbody" the_function in
-   let after_loop_bb = L.append_block context "afterloop" the_function in
-
-   (* Initial jump to the loop condition *)
-   ignore (L.build_br loop_cond_bb builder);
-
-   (* Condition check *)
-   let cond_builder = L.builder_at_end context loop_cond_bb in
-   let index_var = L.build_phi [(start_val, L.insertion_block builder)] "index" cond_builder in
-   let compare = L.build_icmp L.Icmp.Slt index_var end_val "loopcond" cond_builder in
-   ignore (L.build_cond_br compare loop_body_bb after_loop_bb cond_builder);
-
-   (* Loop body *)
-   let body_builder = L.builder_at_end context loop_body_bb in
-   let element_ptr = L.build_gep array_llvalue [| index_var |] "element_ptr" body_builder in
-   let element = L.build_load element_ptr "element" body_builder in
-   ignore (L.build_call printf_func [| int_format_str; element |] "printf" body_builder);
-   let next_index = L.build_add index_var (L.const_int (L.i32_type context) 1) "nextindex" body_builder in
-   add_incoming (next_index, L.insertion_block body_builder) index_var;
-   ignore (L.build_br loop_cond_bb body_builder);
-
-   (* After the loop *)
-   L.position_at_end after_loop_bb builder;
-   L.build_ret (L.const_int (L.i32_type context) 0) builder
-*)
-
 let add_terminal builder instr =
   match L.block_terminator (L.insertion_block builder) with
   | Some _ -> ()
@@ -227,8 +186,8 @@ let rec build_expr func_map var_map builder sexpr : L.llvalue =
         ST_int shape
     | _ -> failwith "Expression type not supported for operation"
   in
-  let build_tensor_addition context builder tensor1 tensor2 result_tensor etyp
-      dims =
+  let build_tensor_bop context builder tensor1 tensor2 result_tensor etyp
+      dims op =
     (* let shape_str = String.concat ", " (List.map string_of_int dims) in
        Printf.printf "Shape: [%s]\n" shape_str; *)
     let size = List.fold_left ( * ) 1 dims in
@@ -248,16 +207,21 @@ let rec build_expr func_map var_map builder sexpr : L.llvalue =
       let elem1 = L.build_load elem1_ptr "elem1" builder in
       let elem2 = L.build_load elem2_ptr "elem2" builder in
 
-      let sum =
-        match etyp with
-        | SP_int -> L.build_add elem1 elem2 "sum" builder
+      let ret =
+        match (etyp, op) with
+        | SP_int, A.Add -> L.build_add elem1 elem2 "ret" builder
+        | SP_int, A.Sub -> L.build_sub elem1 elem2 "ret" builder
+        | SP_int, A.Mul -> L.build_mul elem1 elem2 "ret" builder
+        | SP_float, A.Add -> L.build_add elem1 elem2 "ret" builder
+        | SP_float, A.Sub -> L.build_sub elem1 elem2 "ret" builder
+        | SP_float, A.Mul -> L.build_mul elem1 elem2 "ret" builder
         | _ -> failwith "Unsupported element type for tensor addition"
       in
 
       let result_ptr =
         L.build_gep result_tensor (Array.of_list index) "result_ptr" builder
       in
-      ignore (L.build_store sum result_ptr builder)
+      ignore (L.build_store ret result_ptr builder)
     done
   in
 
@@ -293,18 +257,28 @@ let rec build_expr func_map var_map builder sexpr : L.llvalue =
       let type_e = get_type_of_expr var_map e1 in
       match (type_e, op) with
       | SP_int, A.Add -> L.build_add e1' e2' "tmp" builder
-      | ST_int shape, A.Add ->
+      | SP_int, A.Sub -> L.build_sub e1' e2' "tmp" builder
+      | SP_int, A.Mul -> L.build_mul e1' e2' "tmp" builder
+      | ST_int shape, _ ->
           let elem_type = SP_int in
           let result_tensor =
             L.build_alloca
-              (llvm_type_of_tensor context (llvm_type SP_int) shape)
+              (llvm_type_of_tensor context (llvm_type elem_type) shape)
               "result_tensor" builder
           in
-          build_tensor_addition context builder e1' e2' result_tensor elem_type
-            shape;
+          build_tensor_bop context builder e1' e2' result_tensor elem_type
+            shape op;
           result_tensor
-      | _, A.Sub -> L.build_sub e1' e2' "tmp" builder
-      | _, A.Mul -> L.build_mul e1' e2' "tmp" builder
+      | ST_float shape, _ ->
+          let elem_type = SP_float in
+          let result_tensor =
+            L.build_alloca
+              (llvm_type_of_tensor context (llvm_type elem_type) shape)
+              "result_tensor" builder
+          in
+          build_tensor_bop context builder e1' e2' result_tensor elem_type
+            shape op;
+          result_tensor
       | _, A.Div -> L.build_sdiv e1' e2' "tmp" builder
       | _, A.Or -> L.build_or e1' e2' "tmp" builder
       | _, A.Equal -> L.build_icmp L.Icmp.Eq e1' e2' "tmp" builder
