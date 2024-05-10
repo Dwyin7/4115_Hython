@@ -46,8 +46,7 @@ let str_of_var_map var_map =
   StringMap.iter
     (fun key the_var ->
       let func_str =
-        "Var name: " ^ key ^ ", LLVM value: "
-        ^ str_of_var_map_val the_var
+        "Var name: " ^ key ^ ", LLVM value: " ^ str_of_var_map_val the_var
       in
       str_list := func_str :: !str_list)
     var_map;
@@ -111,16 +110,33 @@ let binds_of_var_map var_map =
   let tmp_list = sorted_map_to_list var_map in
   List.fold_left (fun acc (key, value) -> (value.typ, key) :: acc) [] tmp_list
 
-let print_call llval_expr builder =
-  let int_format_str = L.build_global_stringptr "%d\n" "fmt" builder in
+let print_call e' builder =
+  let llvm_type = L.type_of e' in
+  let format_str, cast_needed =
+    if llvm_type == L.i32_type context then ("%d\n", false) (* Integer *)
+    else if llvm_type == L.float_type context then ("%f\n", false) (* Float *)
+    else if llvm_type == L.i1_type context then ("%d\n", true)
+    else if llvm_type == L.i8_type context then ("%c\n", false) (* Char *)
+    else if llvm_type == L.pointer_type (L.i8_type context) then ("%s\n", false)
+    else failwith "Unsupported type for print"
+  in
+  let value_to_print =
+    if cast_needed then
+      L.build_intcast e' (L.i32_type context) "tmpcast" builder
+    else e'
+  in
+  let format_str_val = L.build_global_stringptr format_str "fmt" builder in
+
   let printf_t : L.lltype =
     L.var_arg_function_type (L.i32_type context)
       [| L.pointer_type (L.i8_type context) |]
   in
   let printf_func : L.llvalue =
-    L.declare_function "printf" printf_t the_module
+    match L.lookup_function "printf" the_module with
+    | Some func -> func
+    | None -> L.declare_function "printf" printf_t the_module
   in
-  L.build_call printf_func [| int_format_str; llval_expr |] "printf" builder
+  L.build_call printf_func [| format_str_val; value_to_print |] "printf" builder
 
 (* let print_array_call array_llvalue array_length builder =
    let the_function = L.block_parent (L.insertion_block builder) in
@@ -298,7 +314,6 @@ let rec build_expr func_map var_map builder sexpr : L.llvalue =
       | _, A.Greater -> L.build_icmp L.Icmp.Sgt e1' e2' "tmp" builder
       | _, A.Geq -> L.build_icmp L.Icmp.Sge e1' e2' "tmp" builder
       | _, A.And -> L.build_and e1' e2' "tmp" builder
-
       | _ -> failwith (string_of_sexpr sexpr))
   | SCall ("print", [ e ]) ->
       let e' = build_expr func_map var_map builder e in
@@ -373,8 +388,8 @@ let rec build_stmt func_map var_map builder stmt
       let e' =
         let expr = build_expr func_map var_map builder (etyp, sx) in
         let expr_typ = L.type_of expr in
-        match L.classify_type expr_typ with
-        | L.TypeKind.Pointer -> L.build_load expr "elem" builder
+        match (L.classify_type expr_typ, etyp) with
+        | L.TypeKind.Pointer, ST_int _ -> L.build_load expr "elem" builder
         | _ -> expr
       in
       ignore (L.build_store e' var builder);

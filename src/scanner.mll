@@ -110,8 +110,7 @@ rule token = parse
 | "import"  { IMPORT }
 
 (* Other *)
-(* | "true" { TRUE true } *)
-(* | "false" { FALSE false } *)
+| string as lxm { STRING_LITERAL(lxm)}
 | int as lxm { INT_LITERAL(int_of_string lxm) }
 | float as lxm { FLOAT_LITERAL(float_of_string lxm) }
 | "true"   { BOOL_LITERAL(true)  }
@@ -119,6 +118,7 @@ rule token = parse
 | char as lxm { CHAR_LITERAL( String.get lxm 1 ) }
 | id as lxm { ID(lxm) }
 | eof { EOF }
+
 (* | '"' { raise (Exceptions.UnmatchedQuotation(!lineno)) }
 | _ as illegal { raise (Exceptions.IllegalCharacter(!filename, illegal, !lineno)) } *)
 
