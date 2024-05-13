@@ -1,0 +1,12 @@
+
+
+int test_deep_nested_logic() {
+T_int i = Tensor(1, 2, 3);
+T_int j = Tensor(1, 2, 3);
+T_int k = (i * j);
+print(k[0]);
+print(k[1]);
+print(k[2]);
+}
+test_deep_nested_logic();
+print(0);

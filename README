@@ -1,0 +1,17 @@
+First build hython.native:
+ocamlbuild -I src -pkgs llvm hython.native
+
+To get the llvm IR code
+./hython.native -l test/tensor.mc > test/tensor.out
+
+To get AST
+./hython.native -a test/tensor.mc > test/tensor.out
+
+To get SAST
+./hython.native -s test/tensor.mc > test/tensor.out
+
+To run the IR code
+lli test/tensor.out
+
+LLVM install instruction we used:
+opam install llvm.14.0.6
